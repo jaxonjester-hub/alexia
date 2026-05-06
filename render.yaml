@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: alexia-timeline
+    runtime: node
+    plan: starter
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: STORAGE_DIR
+        value: /opt/render/project/src/storage
+    disk:
+      name: alexia-timeline-storage
+      mountPath: /opt/render/project/src/storage
+      sizeGB: 1

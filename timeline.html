@@ -109,6 +109,12 @@
       background: #bd3c68;
     }
 
+    .status {
+      color: #7c2b47;
+      min-height: 22px;
+      margin: 0;
+    }
+
     .timeline {
       display: grid;
       gap: 18px;
@@ -189,46 +195,39 @@
       <div class="form-row">
         <label>
           Trip date
-          <input id="memoryDate" type="date" required>
+          <input id="memoryDate" name="date" type="date" required>
         </label>
 
         <label>
           Title
-          <input id="memoryTitle" type="text" placeholder="Beach day, first dinner, airport..." required>
+          <input id="memoryTitle" name="title" type="text" placeholder="Beach day, first dinner, airport..." required>
         </label>
       </div>
 
       <label>
         Picture
-        <input id="memoryPhoto" type="file" accept="image/*" required>
+        <input id="memoryPhoto" name="photo" type="file" accept="image/*" required>
       </label>
 
       <label>
         Memory
-        <textarea id="memoryNote" placeholder="Write what happened that day..." required></textarea>
+        <textarea id="memoryNote" name="note" placeholder="Write what happened that day..." required></textarea>
       </label>
 
       <button type="submit">Add to timeline</button>
+      <p id="status" class="status"></p>
     </form>
 
     <section id="timeline" class="timeline" aria-live="polite"></section>
   </main>
 
   <script>
-    const storageKey = "ourTripTimelineMemories";
     const form = document.getElementById("memoryForm");
     const timeline = document.getElementById("timeline");
-    const dateInput = document.getElementById("memoryDate");
-    const titleInput = document.getElementById("memoryTitle");
-    const photoInput = document.getElementById("memoryPhoto");
-    const noteInput = document.getElementById("memoryNote");
+    const status = document.getElementById("status");
 
-    function getMemories() {
-      return JSON.parse(localStorage.getItem(storageKey)) || [];
-    }
-
-    function saveMemories(memories) {
-      localStorage.setItem(storageKey, JSON.stringify(memories));
+    function setStatus(message) {
+      status.textContent = message;
     }
 
     function formatDate(dateValue) {
@@ -240,8 +239,18 @@
       });
     }
 
-    function renderTimeline() {
-      const memories = getMemories().sort((a, b) => a.date.localeCompare(b.date));
+    async function getMemories() {
+      const response = await fetch("/api/memories");
+
+      if (!response.ok) {
+        throw new Error("Could not load the timeline.");
+      }
+
+      return response.json();
+    }
+
+    async function renderTimeline() {
+      const memories = await getMemories();
       timeline.innerHTML = "";
 
       if (memories.length === 0) {
@@ -282,67 +291,48 @@
       });
     }
 
-    function makeId() {
-      return Date.now().toString(36) + Math.random().toString(36).slice(2);
-    }
-
-    function readPhoto(file) {
-      return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-          const image = new Image();
-
-          image.onload = () => {
-            const maxSize = 1200;
-            const scale = Math.min(1, maxSize / Math.max(image.width, image.height));
-            const canvas = document.createElement("canvas");
-            canvas.width = Math.round(image.width * scale);
-            canvas.height = Math.round(image.height * scale);
-
-            const context = canvas.getContext("2d");
-            context.drawImage(image, 0, 0, canvas.width, canvas.height);
-            resolve(canvas.toDataURL("image/jpeg", 0.82));
-          };
-
-          image.onerror = reject;
-          image.src = reader.result;
-        };
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-      });
-    }
-
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
+      setStatus("Saving...");
 
-      const photo = await readPhoto(photoInput.files[0]);
-      const memories = getMemories();
+      try {
+        const response = await fetch("/api/memories", {
+          method: "POST",
+          body: new FormData(form)
+        });
 
-      memories.push({
-        id: makeId(),
-        date: dateInput.value,
-        title: titleInput.value,
-        note: noteInput.value,
-        photo
-      });
+        if (!response.ok) {
+          throw new Error("The memory could not be saved.");
+        }
 
-      saveMemories(memories);
-      form.reset();
-      renderTimeline();
+        form.reset();
+        setStatus("Saved.");
+        await renderTimeline();
+      } catch (error) {
+        setStatus(error.message);
+      }
     });
 
-    timeline.addEventListener("click", (event) => {
+    timeline.addEventListener("click", async (event) => {
       if (!event.target.matches(".delete-button")) {
         return;
       }
 
       const id = event.target.dataset.id;
-      const memories = getMemories().filter((memory) => memory.id !== id);
-      saveMemories(memories);
-      renderTimeline();
+
+      const response = await fetch("/api/memories/" + id, {
+        method: "DELETE"
+      });
+
+      if (response.ok) {
+        await renderTimeline();
+      }
     });
 
-    renderTimeline();
+    renderTimeline().catch((error) => {
+      timeline.innerHTML = '<div class="empty">Start the server to load the shared timeline.</div>';
+      setStatus(error.message);
+    });
   </script>
 </body>
 </html>
