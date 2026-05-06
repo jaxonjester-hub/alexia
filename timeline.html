@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Our Trip Timeline</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: Arial, sans-serif;
+      background: #ffeef4;
+      color: #333;
+      margin: 0;
+      min-height: 100vh;
+    }
+
+    nav {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      padding: 18px;
+      background: #fff8fb;
+      border-bottom: 1px solid #f5c7d7;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+    nav a {
+      color: #8f3150;
+      text-decoration: none;
+      font-weight: bold;
+      padding: 10px 18px;
+      border-radius: 999px;
+    }
+
+    nav a.active {
+      background: #d94d7b;
+      color: white;
+    }
+
+    main {
+      width: min(960px, 100%);
+      margin: 0 auto;
+      padding: 48px 20px;
+    }
+
+    h1 {
+      text-align: center;
+      font-size: 2.4rem;
+      margin: 0 0 28px;
+    }
+
+    form {
+      display: grid;
+      gap: 14px;
+      background: #fff8fb;
+      border: 1px solid #f5c7d7;
+      border-radius: 8px;
+      padding: 18px;
+      margin-bottom: 34px;
+    }
+
+    .form-row {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    label {
+      display: grid;
+      gap: 6px;
+      color: #7c2b47;
+      font-weight: bold;
+    }
+
+    input,
+    textarea {
+      width: 100%;
+      border: 1px solid #e9a9bf;
+      border-radius: 8px;
+      color: #333;
+      font: inherit;
+      padding: 10px 12px;
+      background: white;
+    }
+
+    textarea {
+      min-height: 90px;
+      resize: vertical;
+    }
+
+    button {
+      justify-self: start;
+      border: 0;
+      border-radius: 999px;
+      background: #d94d7b;
+      color: white;
+      cursor: pointer;
+      font: inherit;
+      font-weight: bold;
+      padding: 11px 18px;
+    }
+
+    button:hover {
+      background: #bd3c68;
+    }
+
+    .timeline {
+      display: grid;
+      gap: 18px;
+    }
+
+    .empty {
+      text-align: center;
+      color: #7c2b47;
+      background: #fff8fb;
+      border: 1px dashed #e9a9bf;
+      border-radius: 8px;
+      padding: 30px 18px;
+    }
+
+    .memory {
+      display: grid;
+      grid-template-columns: 180px 1fr;
+      gap: 18px;
+      align-items: start;
+      background: #fff8fb;
+      border: 1px solid #f5c7d7;
+      border-radius: 8px;
+      padding: 14px;
+    }
+
+    .memory img {
+      width: 100%;
+      aspect-ratio: 4 / 3;
+      object-fit: cover;
+      border-radius: 8px;
+      background: #f5c7d7;
+    }
+
+    .memory time {
+      color: #8f3150;
+      font-weight: bold;
+    }
+
+    .memory h2 {
+      margin: 6px 0 8px;
+      font-size: 1.35rem;
+    }
+
+    .memory p {
+      line-height: 1.55;
+      margin: 0 0 12px;
+    }
+
+    .delete-button {
+      background: transparent;
+      border: 1px solid #e9a9bf;
+      color: #8f3150;
+      padding: 8px 12px;
+    }
+
+    .delete-button:hover {
+      background: #ffeef4;
+    }
+
+    @media (max-width: 640px) {
+      .form-row,
+      .memory {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <nav aria-label="Main pages">
+    <a href="index.html">Countdown</a>
+    <a class="active" href="timeline.html">Timeline</a>
+  </nav>
+
+  <main>
+    <h1>Our Trip Timeline</h1>
+
+    <form id="memoryForm">
+      <div class="form-row">
+        <label>
+          Trip date
+          <input id="memoryDate" type="date" required>
+        </label>
+
+        <label>
+          Title
+          <input id="memoryTitle" type="text" placeholder="Beach day, first dinner, airport..." required>
+        </label>
+      </div>
+
+      <label>
+        Picture
+        <input id="memoryPhoto" type="file" accept="image/*" required>
+      </label>
+
+      <label>
+        Memory
+        <textarea id="memoryNote" placeholder="Write what happened that day..." required></textarea>
+      </label>
+
+      <button type="submit">Add to timeline</button>
+    </form>
+
+    <section id="timeline" class="timeline" aria-live="polite"></section>
+  </main>
+
+  <script>
+    const storageKey = "ourTripTimelineMemories";
+    const form = document.getElementById("memoryForm");
+    const timeline = document.getElementById("timeline");
+    const dateInput = document.getElementById("memoryDate");
+    const titleInput = document.getElementById("memoryTitle");
+    const photoInput = document.getElementById("memoryPhoto");
+    const noteInput = document.getElementById("memoryNote");
+
+    function getMemories() {
+      return JSON.parse(localStorage.getItem(storageKey)) || [];
+    }
+
+    function saveMemories(memories) {
+      localStorage.setItem(storageKey, JSON.stringify(memories));
+    }
+
+    function formatDate(dateValue) {
+      const date = new Date(dateValue + "T00:00:00");
+      return date.toLocaleDateString(undefined, {
+        month: "long",
+        day: "numeric",
+        year: "numeric"
+      });
+    }
+
+    function renderTimeline() {
+      const memories = getMemories().sort((a, b) => a.date.localeCompare(b.date));
+      timeline.innerHTML = "";
+
+      if (memories.length === 0) {
+        timeline.innerHTML = '<div class="empty">Add the first trip memory above.</div>';
+        return;
+      }
+
+      memories.forEach((memory) => {
+        const article = document.createElement("article");
+        article.className = "memory";
+
+        const image = document.createElement("img");
+        image.src = memory.photo;
+        image.alt = "";
+
+        const content = document.createElement("div");
+
+        const date = document.createElement("time");
+        date.dateTime = memory.date;
+        date.textContent = formatDate(memory.date);
+
+        const title = document.createElement("h2");
+        title.textContent = memory.title;
+
+        const note = document.createElement("p");
+        note.textContent = memory.note;
+
+        const deleteButton = document.createElement("button");
+        deleteButton.className = "delete-button";
+        deleteButton.type = "button";
+        deleteButton.dataset.id = memory.id;
+        deleteButton.textContent = "Delete";
+
+        content.append(date, title, note, deleteButton);
+        article.append(image, content);
+
+        timeline.appendChild(article);
+      });
+    }
+
+    function makeId() {
+      return Date.now().toString(36) + Math.random().toString(36).slice(2);
+    }
+
+    function readPhoto(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const image = new Image();
+
+          image.onload = () => {
+            const maxSize = 1200;
+            const scale = Math.min(1, maxSize / Math.max(image.width, image.height));
+            const canvas = document.createElement("canvas");
+            canvas.width = Math.round(image.width * scale);
+            canvas.height = Math.round(image.height * scale);
+
+            const context = canvas.getContext("2d");
+            context.drawImage(image, 0, 0, canvas.width, canvas.height);
+            resolve(canvas.toDataURL("image/jpeg", 0.82));
+          };
+
+          image.onerror = reject;
+          image.src = reader.result;
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+    }
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+
+      const photo = await readPhoto(photoInput.files[0]);
+      const memories = getMemories();
+
+      memories.push({
+        id: makeId(),
+        date: dateInput.value,
+        title: titleInput.value,
+        note: noteInput.value,
+        photo
+      });
+
+      saveMemories(memories);
+      form.reset();
+      renderTimeline();
+    });
+
+    timeline.addEventListener("click", (event) => {
+      if (!event.target.matches(".delete-button")) {
+        return;
+      }
+
+      const id = event.target.dataset.id;
+      const memories = getMemories().filter((memory) => memory.id !== id);
+      saveMemories(memories);
+      renderTimeline();
+    });
+
+    renderTimeline();
+  </script>
+</body>
+</html>
