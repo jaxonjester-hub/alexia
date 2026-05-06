@@ -116,7 +116,8 @@ function normalizeMemory(memory) {
     ...memory,
     startDate: memory.startDate || memory.date,
     endDate: memory.endDate || "",
-    photos: memory.photo ? [memory.photo] : []
+    photos: memory.photo ? [memory.photo] : [],
+    coverPhoto: memory.coverPhoto || memory.photo || ""
   };
 }
 
@@ -162,6 +163,7 @@ async function handleCreateMemory(request, response) {
     title: fields.title,
     note: fields.note,
     photos: savedPhotos,
+    coverPhoto: savedPhotos[0],
     createdAt: new Date().toISOString()
   };
 
@@ -197,6 +199,27 @@ function handleDeleteMemory(request, response, id) {
   });
 
   sendJson(response, 200, { ok: true });
+}
+
+async function handleUpdateCoverPhoto(request, response, id) {
+  const body = await readBody(request);
+  const payload = JSON.parse(body.toString("utf8") || "{}");
+  const memories = readMemories().map(normalizeMemory);
+  const memory = memories.find((item) => item.id === id);
+
+  if (!memory) {
+    sendJson(response, 404, { error: "Trip not found." });
+    return;
+  }
+
+  if (!memory.photos.includes(payload.coverPhoto)) {
+    sendJson(response, 400, { error: "That photo does not belong to this trip." });
+    return;
+  }
+
+  memory.coverPhoto = payload.coverPhoto;
+  saveMemories(memories);
+  sendJson(response, 200, memory);
 }
 
 function serveFile(response, requestedPath) {
@@ -243,6 +266,12 @@ const server = http.createServer(async (request, response) => {
 
     if (request.method === "DELETE" && url.pathname.startsWith("/api/memories/")) {
       handleDeleteMemory(request, response, url.pathname.split("/").pop());
+      return;
+    }
+
+    if (request.method === "PATCH" && url.pathname.startsWith("/api/memories/")) {
+      const parts = url.pathname.split("/");
+      await handleUpdateCoverPhoto(request, response, parts[3]);
       return;
     }
 

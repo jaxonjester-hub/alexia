@@ -259,12 +259,33 @@
       padding-bottom: 12px;
     }
 
-    .viewer-grid img {
+    .viewer-photo {
+      display: grid;
+      gap: 8px;
+      align-content: start;
+    }
+
+    .viewer-photo img {
       width: 100%;
       aspect-ratio: 4 / 3;
       object-fit: cover;
       border-radius: 8px;
       background: #f5c7d7;
+    }
+
+    .cover-button {
+      background: white;
+      color: #8f3150;
+      border: 2px solid transparent;
+      border-radius: 8px;
+      padding: 9px 12px;
+      width: 100%;
+    }
+
+    .cover-button.active {
+      border-color: #d94d7b;
+      background: #ffeef4;
+      color: #333;
     }
 
     @media (max-width: 760px) {
@@ -398,7 +419,7 @@
         cover.dataset.id = trip.id;
 
         const image = document.createElement("img");
-        image.src = trip.photos[0];
+        image.src = trip.coverPhoto || trip.photos[0];
         image.alt = "";
 
         const count = document.createElement("span");
@@ -437,10 +458,26 @@
       viewerGrid.innerHTML = "";
 
       trip.photos.forEach((photo) => {
+        const item = document.createElement("div");
+        item.className = "viewer-photo";
+
         const image = document.createElement("img");
         image.src = photo;
         image.alt = "";
-        viewerGrid.appendChild(image);
+
+        const coverButton = document.createElement("button");
+        coverButton.className = "cover-button";
+        coverButton.type = "button";
+        coverButton.dataset.tripId = trip.id;
+        coverButton.dataset.photo = photo;
+        coverButton.textContent = photo === trip.coverPhoto ? "Current cover" : "Make cover";
+
+        if (photo === trip.coverPhoto) {
+          coverButton.classList.add("active");
+        }
+
+        item.append(image, coverButton);
+        viewerGrid.appendChild(item);
       });
 
       viewer.classList.add("open");
@@ -506,6 +543,38 @@
       if (event.target === viewer) {
         closeViewer();
       }
+    });
+
+    viewerGrid.addEventListener("click", async (event) => {
+      if (!event.target.matches(".cover-button")) {
+        return;
+      }
+
+      const response = await fetch("/api/memories/" + event.target.dataset.tripId, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          coverPhoto: event.target.dataset.photo
+        })
+      });
+
+      if (!response.ok) {
+        setStatus("The cover photo could not be changed.");
+        return;
+      }
+
+      const updatedTrip = await response.json();
+      const index = currentTrips.findIndex((trip) => trip.id === updatedTrip.id);
+
+      if (index !== -1) {
+        currentTrips[index] = updatedTrip;
+      }
+
+      await renderTimeline();
+      openViewer(updatedTrip);
+      setStatus("Cover photo updated.");
     });
 
     document.addEventListener("keydown", (event) => {
