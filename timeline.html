@@ -43,9 +43,9 @@
     }
 
     main {
-      width: min(960px, 100%);
+      width: min(1080px, 100%);
       margin: 0 auto;
-      padding: 48px 20px;
+      padding: 42px 20px 64px;
     }
 
     h1 {
@@ -56,12 +56,19 @@
 
     form {
       display: grid;
-      gap: 14px;
+      grid-template-columns: minmax(0, 1fr) minmax(280px, 0.8fr);
+      gap: 18px;
       background: #fff8fb;
       border: 1px solid #f5c7d7;
       border-radius: 8px;
       padding: 18px;
       margin-bottom: 34px;
+    }
+
+    .form-section {
+      display: grid;
+      gap: 14px;
+      align-content: start;
     }
 
     .form-row {
@@ -89,12 +96,26 @@
     }
 
     textarea {
-      min-height: 90px;
+      min-height: 150px;
       resize: vertical;
     }
 
+    input[type="file"] {
+      min-height: 118px;
+      padding: 36px 14px;
+      background: white;
+      border: 2px dashed #e9a9bf;
+      cursor: pointer;
+    }
+
+    .actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
     button {
-      justify-self: start;
       border: 0;
       border-radius: 999px;
       background: #d94d7b;
@@ -117,7 +138,7 @@
 
     .timeline {
       display: grid;
-      gap: 18px;
+      gap: 22px;
     }
 
     .empty {
@@ -129,38 +150,60 @@
       padding: 30px 18px;
     }
 
-    .memory {
-      display: grid;
-      grid-template-columns: 180px 1fr;
-      gap: 18px;
-      align-items: start;
+    .trip {
       background: #fff8fb;
       border: 1px solid #f5c7d7;
       border-radius: 8px;
-      padding: 14px;
+      overflow: hidden;
     }
 
-    .memory img {
+    .trip-cover {
+      position: relative;
+      display: block;
       width: 100%;
-      aspect-ratio: 4 / 3;
-      object-fit: cover;
-      border-radius: 8px;
+      border: 0;
+      border-radius: 0;
+      padding: 0;
       background: #f5c7d7;
+      cursor: pointer;
     }
 
-    .memory time {
+    .trip-cover img {
+      width: 100%;
+      height: 320px;
+      object-fit: cover;
+      background: #f5c7d7;
+      display: block;
+    }
+
+    .photo-count {
+      position: absolute;
+      right: 14px;
+      bottom: 14px;
+      color: white;
+      background: rgba(51, 51, 51, 0.78);
+      border-radius: 999px;
+      font-weight: bold;
+      padding: 8px 12px;
+    }
+
+    .trip-body {
+      padding: 18px;
+    }
+
+    .trip-date {
       color: #8f3150;
       font-weight: bold;
     }
 
-    .memory h2 {
-      margin: 6px 0 8px;
-      font-size: 1.35rem;
+    .trip h2 {
+      margin: 6px 0 10px;
+      font-size: 1.55rem;
     }
 
-    .memory p {
+    .trip p {
       line-height: 1.55;
-      margin: 0 0 12px;
+      margin: 0 0 14px;
     }
 
     .delete-button {
@@ -174,10 +217,64 @@
       background: #ffeef4;
     }
 
-    @media (max-width: 640px) {
-      .form-row,
-      .memory {
+    .viewer {
+      position: fixed;
+      inset: 0;
+      display: none;
+      grid-template-rows: auto 1fr;
+      background: rgba(30, 20, 25, 0.92);
+      z-index: 20;
+      padding: 18px;
+    }
+
+    .viewer.open {
+      display: grid;
+    }
+
+    .viewer-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      color: white;
+      padding-bottom: 14px;
+    }
+
+    .viewer-title {
+      font-weight: bold;
+      margin: 0;
+    }
+
+    .viewer-close {
+      background: white;
+      color: #333;
+      padding: 9px 14px;
+    }
+
+    .viewer-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 12px;
+      overflow: auto;
+      padding-bottom: 12px;
+    }
+
+    .viewer-grid img {
+      width: 100%;
+      aspect-ratio: 4 / 3;
+      object-fit: cover;
+      border-radius: 8px;
+      background: #f5c7d7;
+    }
+
+    @media (max-width: 760px) {
+      form,
+      .form-row {
         grid-template-columns: 1fr;
+      }
+
+      .trip-cover img {
+        height: 230px;
       }
     }
   </style>
@@ -191,40 +288,64 @@
   <main>
     <h1>Our Trip Timeline</h1>
 
-    <form id="memoryForm">
-      <div class="form-row">
+    <form id="tripForm">
+      <div class="form-section">
         <label>
-          Trip date
-          <input id="memoryDate" name="date" type="date" required>
+          Trip title
+          <input name="title" type="text" placeholder="New York weekend, beach trip, summer visit..." required>
         </label>
 
+        <div class="form-row">
+          <label>
+            Start date
+            <input name="startDate" type="date" required>
+          </label>
+
+          <label>
+            End date
+            <input name="endDate" type="date">
+          </label>
+        </div>
+
         <label>
-          Title
-          <input id="memoryTitle" name="title" type="text" placeholder="Beach day, first dinner, airport..." required>
+          What happened
+          <textarea name="note" placeholder="Write the story of the trip..." required></textarea>
         </label>
       </div>
 
-      <label>
-        Picture
-        <input id="memoryPhoto" name="photo" type="file" accept="image/*" required>
-      </label>
+      <div class="form-section">
+        <label>
+          Trip pictures
+          <input name="photos" type="file" accept="image/*" multiple required>
+        </label>
 
-      <label>
-        Memory
-        <textarea id="memoryNote" name="note" placeholder="Write what happened that day..." required></textarea>
-      </label>
-
-      <button type="submit">Add to timeline</button>
-      <p id="status" class="status"></p>
+        <div class="actions">
+          <button type="submit">Add trip</button>
+          <p id="status" class="status"></p>
+        </div>
+      </div>
     </form>
 
     <section id="timeline" class="timeline" aria-live="polite"></section>
   </main>
 
+  <div id="viewer" class="viewer" aria-hidden="true">
+    <div class="viewer-header">
+      <p id="viewerTitle" class="viewer-title"></p>
+      <button id="viewerClose" class="viewer-close" type="button">Close</button>
+    </div>
+    <div id="viewerGrid" class="viewer-grid"></div>
+  </div>
+
   <script>
-    const form = document.getElementById("memoryForm");
+    const form = document.getElementById("tripForm");
     const timeline = document.getElementById("timeline");
     const status = document.getElementById("status");
+    const viewer = document.getElementById("viewer");
+    const viewerTitle = document.getElementById("viewerTitle");
+    const viewerGrid = document.getElementById("viewerGrid");
+    const viewerClose = document.getElementById("viewerClose");
+    let currentTrips = [];
 
     function setStatus(message) {
       status.textContent = message;
@@ -239,7 +360,15 @@
       });
     }
 
-    async function getMemories() {
+    function formatDateRange(trip) {
+      if (!trip.endDate || trip.endDate === trip.startDate) {
+        return formatDate(trip.startDate);
+      }
+
+      return formatDate(trip.startDate) + " - " + formatDate(trip.endDate);
+    }
+
+    async function getTrips() {
       const response = await fetch("/api/memories");
 
       if (!response.ok) {
@@ -250,45 +379,77 @@
     }
 
     async function renderTimeline() {
-      const memories = await getMemories();
+      const trips = await getTrips();
+      currentTrips = trips;
       timeline.innerHTML = "";
 
-      if (memories.length === 0) {
-        timeline.innerHTML = '<div class="empty">Add the first trip memory above.</div>';
+      if (trips.length === 0) {
+        timeline.innerHTML = '<div class="empty">Add the first trip above.</div>';
         return;
       }
 
-      memories.forEach((memory) => {
+      trips.forEach((trip) => {
         const article = document.createElement("article");
-        article.className = "memory";
+        article.className = "trip";
+
+        const cover = document.createElement("button");
+        cover.className = "trip-cover";
+        cover.type = "button";
+        cover.dataset.id = trip.id;
 
         const image = document.createElement("img");
-        image.src = memory.photo;
+        image.src = trip.photos[0];
         image.alt = "";
 
-        const content = document.createElement("div");
+        const count = document.createElement("span");
+        count.className = "photo-count";
+        count.textContent = "View " + trip.photos.length + " photo" + (trip.photos.length === 1 ? "" : "s");
 
-        const date = document.createElement("time");
-        date.dateTime = memory.date;
-        date.textContent = formatDate(memory.date);
+        cover.append(image, count);
+
+        const body = document.createElement("div");
+        body.className = "trip-body";
+
+        const date = document.createElement("div");
+        date.className = "trip-date";
+        date.textContent = formatDateRange(trip);
 
         const title = document.createElement("h2");
-        title.textContent = memory.title;
+        title.textContent = trip.title;
 
         const note = document.createElement("p");
-        note.textContent = memory.note;
+        note.textContent = trip.note;
 
         const deleteButton = document.createElement("button");
         deleteButton.className = "delete-button";
         deleteButton.type = "button";
-        deleteButton.dataset.id = memory.id;
-        deleteButton.textContent = "Delete";
+        deleteButton.dataset.id = trip.id;
+        deleteButton.textContent = "Delete trip";
 
-        content.append(date, title, note, deleteButton);
-        article.append(image, content);
-
+        body.append(date, title, note, deleteButton);
+        article.append(cover, body);
         timeline.appendChild(article);
       });
+    }
+
+    function openViewer(trip) {
+      viewerTitle.textContent = trip.title + " photos";
+      viewerGrid.innerHTML = "";
+
+      trip.photos.forEach((photo) => {
+        const image = document.createElement("img");
+        image.src = photo;
+        image.alt = "";
+        viewerGrid.appendChild(image);
+      });
+
+      viewer.classList.add("open");
+      viewer.setAttribute("aria-hidden", "false");
+    }
+
+    function closeViewer() {
+      viewer.classList.remove("open");
+      viewer.setAttribute("aria-hidden", "true");
     }
 
     form.addEventListener("submit", async (event) => {
@@ -302,7 +463,8 @@
         });
 
         if (!response.ok) {
-          throw new Error("The memory could not be saved.");
+          const details = await response.json();
+          throw new Error(details.error || "The trip could not be saved.");
         }
 
         form.reset();
@@ -314,18 +476,41 @@
     });
 
     timeline.addEventListener("click", async (event) => {
+      const cover = event.target.closest(".trip-cover");
+
+      if (cover) {
+        const trip = currentTrips.find((item) => item.id === cover.dataset.id);
+
+        if (trip) {
+          openViewer(trip);
+        }
+
+        return;
+      }
+
       if (!event.target.matches(".delete-button")) {
         return;
       }
 
-      const id = event.target.dataset.id;
-
-      const response = await fetch("/api/memories/" + id, {
+      const response = await fetch("/api/memories/" + event.target.dataset.id, {
         method: "DELETE"
       });
 
       if (response.ok) {
         await renderTimeline();
+      }
+    });
+
+    viewerClose.addEventListener("click", closeViewer);
+    viewer.addEventListener("click", (event) => {
+      if (event.target === viewer) {
+        closeViewer();
+      }
+    });
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        closeViewer();
       }
     });
 

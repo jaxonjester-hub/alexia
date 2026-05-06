@@ -107,6 +107,19 @@ function safeUploadExtension(contentType, filename) {
   return [".jpg", ".jpeg", ".png", ".gif", ".webp"].includes(fromName) ? fromName : ".jpg";
 }
 
+function normalizeMemory(memory) {
+  if (memory.photos) {
+    return memory;
+  }
+
+  return {
+    ...memory,
+    startDate: memory.startDate || memory.date,
+    endDate: memory.endDate || "",
+    photos: memory.photo ? [memory.photo] : []
+  };
+}
+
 async function handleCreateMemory(request, response) {
   const contentType = request.headers["content-type"] || "";
   const boundary = contentType.match(/boundary=(.+)$/);
@@ -119,41 +132,48 @@ async function handleCreateMemory(request, response) {
   const body = await readBody(request);
   const parts = parseMultipart(body, boundary[1]);
   const fields = Object.fromEntries(parts.filter((part) => !part.filename).map((part) => [part.name, part.data.toString("utf8")]));
-  const photo = parts.find((part) => part.name === "photo" && part.filename);
+  const photos = parts.filter((part) => part.name === "photos" && part.filename && part.data.length > 0);
+  const legacyPhoto = parts.find((part) => part.name === "photo" && part.filename && part.data.length > 0);
+  const uploadedPhotos = photos.length > 0 ? photos : legacyPhoto ? [legacyPhoto] : [];
 
-  if (!fields.date || !fields.title || !fields.note || !photo) {
-    sendJson(response, 400, { error: "Date, title, memory, and picture are required." });
+  if (!fields.startDate || !fields.title || !fields.note || uploadedPhotos.length === 0) {
+    sendJson(response, 400, { error: "Start date, title, memory, and at least one picture are required." });
     return;
   }
 
-  if (!photo.contentType.startsWith("image/")) {
+  if (uploadedPhotos.some((photo) => !photo.contentType.startsWith("image/"))) {
     sendJson(response, 400, { error: "The upload must be an image." });
     return;
   }
 
-  const extension = safeUploadExtension(photo.contentType, photo.filename);
-  const uploadName = crypto.randomUUID() + extension;
-  const uploadPath = path.join(uploadsDir, uploadName);
-  fs.writeFileSync(uploadPath, photo.data);
+  const savedPhotos = uploadedPhotos.map((photo) => {
+    const extension = safeUploadExtension(photo.contentType, photo.filename);
+    const uploadName = crypto.randomUUID() + extension;
+    const uploadPath = path.join(uploadsDir, uploadName);
+    fs.writeFileSync(uploadPath, photo.data);
+    return "/uploads/" + uploadName;
+  });
 
   const memory = {
     id: crypto.randomUUID(),
-    date: fields.date,
+    date: fields.startDate,
+    startDate: fields.startDate,
+    endDate: fields.endDate || "",
     title: fields.title,
     note: fields.note,
-    photo: "/uploads/" + uploadName,
+    photos: savedPhotos,
     createdAt: new Date().toISOString()
   };
 
-  const memories = readMemories();
+  const memories = readMemories().map(normalizeMemory);
   memories.push(memory);
-  memories.sort((a, b) => a.date.localeCompare(b.date));
+  memories.sort((a, b) => b.startDate.localeCompare(a.startDate));
   saveMemories(memories);
   sendJson(response, 201, memory);
 }
 
 function handleDeleteMemory(request, response, id) {
-  const memories = readMemories();
+  const memories = readMemories().map(normalizeMemory);
   const memory = memories.find((item) => item.id === id);
   const remaining = memories.filter((item) => item.id !== id);
 
@@ -164,13 +184,17 @@ function handleDeleteMemory(request, response, id) {
 
   saveMemories(remaining);
 
-  if (memory.photo && memory.photo.startsWith("/uploads/")) {
-    const uploadPath = path.join(root, memory.photo);
+  memory.photos.forEach((photo) => {
+    if (!photo.startsWith("/uploads/")) {
+      return;
+    }
+
+    const uploadPath = path.join(storageDir, photo);
 
     if (uploadPath.startsWith(uploadsDir) && fs.existsSync(uploadPath)) {
       fs.unlinkSync(uploadPath);
     }
-  }
+  });
 
   sendJson(response, 200, { ok: true });
 }
@@ -203,7 +227,7 @@ const server = http.createServer(async (request, response) => {
     const url = new URL(request.url, "http://localhost");
 
     if (request.method === "GET" && url.pathname === "/api/memories") {
-      sendJson(response, 200, readMemories().sort((a, b) => a.date.localeCompare(b.date)));
+      sendJson(response, 200, readMemories().map(normalizeMemory).sort((a, b) => b.startDate.localeCompare(a.startDate)));
       return;
     }
 
