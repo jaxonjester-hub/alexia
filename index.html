@@ -1,14 +1,49 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Countdown Until I See You</title>
   <style>
+    * {
+      box-sizing: border-box;
+    }
+
     body {
       font-family: Arial, sans-serif;
       text-align: center;
       background: #ffeef4;
       color: #333;
-      padding-top: 100px;
+      margin: 0;
+      min-height: 100vh;
+    }
+
+    nav {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      padding: 18px;
+      background: #fff8fb;
+      border-bottom: 1px solid #f5c7d7;
+      position: sticky;
+      top: 0;
+    }
+
+    nav a {
+      color: #8f3150;
+      text-decoration: none;
+      font-weight: bold;
+      padding: 10px 18px;
+      border-radius: 999px;
+    }
+
+    nav a.active {
+      background: #d94d7b;
+      color: white;
+    }
+
+    main {
+      padding: 80px 20px;
     }
 
     h1 {
@@ -23,8 +58,15 @@
   </style>
 </head>
 <body>
-  <h1>Countdown Until I See My Girlfriend ❤️</h1>
-  <div id="countdown"></div>
+  <nav aria-label="Main pages">
+    <a class="active" href="index.html">Countdown</a>
+    <a href="letter.html">Letter</a>
+  </nav>
+
+  <main>
+    <h1>Countdown Until I See My Girlfriend ❤️</h1>
+    <div id="countdown"></div>
+  </main>
 
   <script>
     const targetDate = new Date("2026-07-05T12:00:00").getTime();
@@ -50,6 +92,5 @@
     updateCountdown();
     setInterval(updateCountdown, 1000);
   </script>
-<a href="letter.html">Go to the letter page ❤️</a>
 </body>
 </html>

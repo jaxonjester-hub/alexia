@@ -1,15 +1,75 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>A Note For You</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      background: #ffeef4;
+      color: #333;
+      margin: 0;
+      min-height: 100vh;
+    }
+
+    nav {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      padding: 18px;
+      background: #fff8fb;
+      border-bottom: 1px solid #f5c7d7;
+      position: sticky;
+      top: 0;
+    }
+
+    nav a {
+      color: #8f3150;
+      text-decoration: none;
+      font-weight: bold;
+      padding: 10px 18px;
+      border-radius: 999px;
+    }
+
+    nav a.active {
+      background: #d94d7b;
+      color: white;
+    }
+
+    main {
+      max-width: 640px;
+      margin: 0 auto;
+      padding: 80px 20px;
+    }
+
+    h1 {
+      font-size: 2.5rem;
+    }
+
+    p {
+      font-size: 1.2rem;
+      line-height: 1.7;
+    }
+  </style>
 </head>
 <body>
-  <h1>A Note For You ❤️</h1>
+  <nav aria-label="Main pages">
+    <a href="index.html">Countdown</a>
+    <a class="active" href="letter.html">Letter</a>
+  </nav>
 
-  <p>
-    I can’t wait to see you. Every day closer makes me happier.
-  </p>
+  <main>
+    <h1>A Note For You ❤️</h1>
 
-  <a href="index.html">Back to the countdown</a>
+    <p>
+      I can't wait to see you. Every day closer makes me happier.
+    </p>
+  </main>
 </body>
 </html>
