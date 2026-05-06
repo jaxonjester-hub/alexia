@@ -9,6 +9,7 @@ const storageDir = process.env.STORAGE_DIR || root;
 const dataDir = path.join(storageDir, "data");
 const uploadsDir = path.join(storageDir, "uploads");
 const memoriesFile = path.join(dataDir, "memories.json");
+const schedulesFile = path.join(dataDir, "schedules.json");
 
 const contentTypes = {
   ".html": "text/html; charset=utf-8",
@@ -29,6 +30,10 @@ if (!fs.existsSync(memoriesFile)) {
   fs.writeFileSync(memoriesFile, "[]");
 }
 
+if (!fs.existsSync(schedulesFile)) {
+  fs.writeFileSync(schedulesFile, JSON.stringify({ events: [], images: [] }, null, 2));
+}
+
 function sendJson(response, status, value) {
   response.writeHead(status, { "Content-Type": "application/json; charset=utf-8" });
   response.end(JSON.stringify(value));
@@ -40,6 +45,14 @@ function readMemories() {
 
 function saveMemories(memories) {
   fs.writeFileSync(memoriesFile, JSON.stringify(memories, null, 2));
+}
+
+function readSchedules() {
+  return JSON.parse(fs.readFileSync(schedulesFile, "utf8"));
+}
+
+function saveSchedules(schedules) {
+  fs.writeFileSync(schedulesFile, JSON.stringify(schedules, null, 2));
 }
 
 function readBody(request) {
@@ -222,6 +235,107 @@ async function handleUpdateCoverPhoto(request, response, id) {
   sendJson(response, 200, memory);
 }
 
+async function handleCreateScheduleEvent(request, response) {
+  const body = await readBody(request);
+  const event = JSON.parse(body.toString("utf8") || "{}");
+  const allowedDays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
+  const allowedPeople = ["Jaxon", "Alexia"];
+
+  if (!allowedPeople.includes(event.person) || !allowedDays.includes(event.day) || !event.title || !event.startTime || !event.endTime) {
+    sendJson(response, 400, { error: "Person, day, title, start time, and end time are required." });
+    return;
+  }
+
+  const schedules = readSchedules();
+  const savedEvent = {
+    id: crypto.randomUUID(),
+    person: event.person,
+    day: event.day,
+    title: event.title,
+    startTime: event.startTime,
+    endTime: event.endTime,
+    note: event.note || "",
+    createdAt: new Date().toISOString()
+  };
+
+  schedules.events.push(savedEvent);
+  schedules.events.sort((a, b) => a.day.localeCompare(b.day) || a.startTime.localeCompare(b.startTime));
+  saveSchedules(schedules);
+  sendJson(response, 201, savedEvent);
+}
+
+function handleDeleteScheduleEvent(response, id) {
+  const schedules = readSchedules();
+  schedules.events = schedules.events.filter((event) => event.id !== id);
+  saveSchedules(schedules);
+  sendJson(response, 200, { ok: true });
+}
+
+async function handleUploadScheduleImage(request, response) {
+  const contentType = request.headers["content-type"] || "";
+  const boundary = contentType.match(/boundary=(.+)$/);
+
+  if (!boundary) {
+    sendJson(response, 400, { error: "Missing upload boundary." });
+    return;
+  }
+
+  const body = await readBody(request);
+  const parts = parseMultipart(body, boundary[1]);
+  const fields = Object.fromEntries(parts.filter((part) => !part.filename).map((part) => [part.name, part.data.toString("utf8")]));
+  const image = parts.find((part) => part.name === "scheduleImage" && part.filename && part.data.length > 0);
+
+  if (!["Jaxon", "Alexia"].includes(fields.person) || !image) {
+    sendJson(response, 400, { error: "Person and schedule image are required." });
+    return;
+  }
+
+  if (!image.contentType.startsWith("image/")) {
+    sendJson(response, 400, { error: "The upload must be an image." });
+    return;
+  }
+
+  const extension = safeUploadExtension(image.contentType, image.filename);
+  const uploadName = crypto.randomUUID() + extension;
+  const uploadPath = path.join(uploadsDir, uploadName);
+  fs.writeFileSync(uploadPath, image.data);
+
+  const schedules = readSchedules();
+  const savedImage = {
+    id: crypto.randomUUID(),
+    person: fields.person,
+    image: "/uploads/" + uploadName,
+    createdAt: new Date().toISOString()
+  };
+
+  schedules.images.push(savedImage);
+  saveSchedules(schedules);
+  sendJson(response, 201, savedImage);
+}
+
+function handleDeleteScheduleImage(response, id) {
+  const schedules = readSchedules();
+  const image = schedules.images.find((item) => item.id === id);
+
+  if (!image) {
+    sendJson(response, 404, { error: "Schedule image not found." });
+    return;
+  }
+
+  schedules.images = schedules.images.filter((item) => item.id !== id);
+  saveSchedules(schedules);
+
+  if (image.image && image.image.startsWith("/uploads/")) {
+    const uploadPath = path.join(storageDir, image.image);
+
+    if (uploadPath.startsWith(uploadsDir) && fs.existsSync(uploadPath)) {
+      fs.unlinkSync(uploadPath);
+    }
+  }
+
+  sendJson(response, 200, { ok: true });
+}
+
 function serveFile(response, requestedPath) {
   const cleanPath = requestedPath === "/" ? "/index.html" : decodeURIComponent(requestedPath);
   const baseDir = cleanPath.startsWith("/uploads/") ? storageDir : root;
@@ -254,6 +368,11 @@ const server = http.createServer(async (request, response) => {
       return;
     }
 
+    if (request.method === "GET" && url.pathname === "/api/schedules") {
+      sendJson(response, 200, readSchedules());
+      return;
+    }
+
     if (request.method === "GET" && url.pathname === "/health") {
       sendJson(response, 200, { ok: true });
       return;
@@ -272,6 +391,26 @@ const server = http.createServer(async (request, response) => {
     if (request.method === "PATCH" && url.pathname.startsWith("/api/memories/")) {
       const parts = url.pathname.split("/");
       await handleUpdateCoverPhoto(request, response, parts[3]);
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/api/schedules/events") {
+      await handleCreateScheduleEvent(request, response);
+      return;
+    }
+
+    if (request.method === "DELETE" && url.pathname.startsWith("/api/schedules/events/")) {
+      handleDeleteScheduleEvent(response, url.pathname.split("/").pop());
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/api/schedules/images") {
+      await handleUploadScheduleImage(request, response);
+      return;
+    }
+
+    if (request.method === "DELETE" && url.pathname.startsWith("/api/schedules/images/")) {
+      handleDeleteScheduleImage(response, url.pathname.split("/").pop());
       return;
     }
 

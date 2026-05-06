@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Weekly Schedules</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: Arial, sans-serif;
+      background: #ffeef4;
+      color: #333;
+      margin: 0;
+      min-height: 100vh;
+    }
+
+    nav {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      padding: 18px;
+      background: #fff8fb;
+      border-bottom: 1px solid #f5c7d7;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+    nav a {
+      color: #8f3150;
+      text-decoration: none;
+      font-weight: bold;
+      padding: 10px 18px;
+      border-radius: 999px;
+    }
+
+    nav a.active {
+      background: #d94d7b;
+      color: white;
+    }
+
+    main {
+      width: min(1160px, 100%);
+      margin: 0 auto;
+      padding: 42px 20px 64px;
+    }
+
+    h1 {
+      text-align: center;
+      font-size: 2.4rem;
+      margin: 0 0 28px;
+    }
+
+    .forms {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(280px, 0.75fr);
+      gap: 18px;
+      margin-bottom: 30px;
+    }
+
+    form,
+    .schedule-card {
+      background: #fff8fb;
+      border: 1px solid #f5c7d7;
+      border-radius: 8px;
+      padding: 18px;
+    }
+
+    form {
+      display: grid;
+      gap: 14px;
+      align-content: start;
+    }
+
+    .form-row {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    label {
+      display: grid;
+      gap: 6px;
+      color: #7c2b47;
+      font-weight: bold;
+    }
+
+    input,
+    select {
+      width: 100%;
+      border: 1px solid #e9a9bf;
+      border-radius: 8px;
+      color: #333;
+      font: inherit;
+      padding: 10px 12px;
+      background: white;
+    }
+
+    input[type="file"] {
+      min-height: 104px;
+      padding: 30px 14px;
+      border: 2px dashed #e9a9bf;
+      cursor: pointer;
+    }
+
+    button {
+      justify-self: start;
+      border: 0;
+      border-radius: 999px;
+      background: #d94d7b;
+      color: white;
+      cursor: pointer;
+      font: inherit;
+      font-weight: bold;
+      padding: 11px 18px;
+    }
+
+    button:hover {
+      background: #bd3c68;
+    }
+
+    .status {
+      color: #7c2b47;
+      min-height: 22px;
+      margin: 0;
+    }
+
+    .board {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(150px, 1fr));
+      gap: 12px;
+      margin-bottom: 30px;
+      overflow-x: auto;
+      padding-bottom: 6px;
+    }
+
+    .day {
+      min-width: 150px;
+      background: #fff8fb;
+      border: 1px solid #f5c7d7;
+      border-radius: 8px;
+      padding: 12px;
+    }
+
+    .day h2 {
+      color: #8f3150;
+      font-size: 1rem;
+      margin: 0 0 10px;
+    }
+
+    .event {
+      display: grid;
+      gap: 4px;
+      background: white;
+      border-left: 5px solid #d94d7b;
+      border-radius: 8px;
+      margin-bottom: 10px;
+      padding: 10px;
+    }
+
+    .event.alexia {
+      border-left-color: #4f8f7b;
+    }
+
+    .event strong {
+      font-size: 0.95rem;
+    }
+
+    .event span {
+      font-size: 0.86rem;
+      color: #666;
+    }
+
+    .event button,
+    .image-card button {
+      background: transparent;
+      border: 1px solid #e9a9bf;
+      color: #8f3150;
+      padding: 7px 10px;
+    }
+
+    .images {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 18px;
+    }
+
+    .schedule-card h2 {
+      color: #8f3150;
+      margin: 0 0 12px;
+      font-size: 1.25rem;
+    }
+
+    .image-list {
+      display: grid;
+      gap: 12px;
+    }
+
+    .image-card {
+      display: grid;
+      gap: 10px;
+    }
+
+    .image-card img {
+      width: 100%;
+      max-height: 420px;
+      object-fit: contain;
+      background: white;
+      border-radius: 8px;
+      border: 1px solid #f5c7d7;
+    }
+
+    .empty {
+      color: #7c2b47;
+      border: 1px dashed #e9a9bf;
+      border-radius: 8px;
+      padding: 16px;
+      text-align: center;
+    }
+
+    @media (max-width: 820px) {
+      .forms,
+      .form-row,
+      .images {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <nav aria-label="Main pages">
+    <a href="index.html">Countdown</a>
+    <a href="timeline.html">Timeline</a>
+    <a class="active" href="schedules.html">Schedules</a>
+  </nav>
+
+  <main>
+    <h1>Weekly Schedules</h1>
+
+    <section class="forms">
+      <form id="eventForm">
+        <div class="form-row">
+          <label>
+            Person
+            <select name="person" required>
+              <option value="Jaxon">Jaxon</option>
+              <option value="Alexia">Alexia</option>
+            </select>
+          </label>
+
+          <label>
+            Day
+            <select name="day" required>
+              <option>Monday</option>
+              <option>Tuesday</option>
+              <option>Wednesday</option>
+              <option>Thursday</option>
+              <option>Friday</option>
+            </select>
+          </label>
+        </div>
+
+        <label>
+          Class or event
+          <input name="title" type="text" placeholder="Chemistry, practice, work..." required>
+        </label>
+
+        <div class="form-row">
+          <label>
+            Start
+            <input name="startTime" type="time" required>
+          </label>
+
+          <label>
+            End
+            <input name="endTime" type="time" required>
+          </label>
+        </div>
+
+        <label>
+          Note
+          <input name="note" type="text" placeholder="Building, room, reminder...">
+        </label>
+
+        <button type="submit">Add schedule item</button>
+      </form>
+
+      <form id="imageForm">
+        <label>
+          Person
+          <select name="person" required>
+            <option value="Jaxon">Jaxon</option>
+            <option value="Alexia">Alexia</option>
+          </select>
+        </label>
+
+        <label>
+          Upload schedule picture
+          <input name="scheduleImage" type="file" accept="image/*" required>
+        </label>
+
+        <button type="submit">Upload schedule</button>
+        <p id="status" class="status"></p>
+      </form>
+    </section>
+
+    <section id="board" class="board" aria-live="polite"></section>
+
+    <section class="images">
+      <div class="schedule-card">
+        <h2>Jaxon's Uploaded Schedule</h2>
+        <div id="jaxonImages" class="image-list"></div>
+      </div>
+
+      <div class="schedule-card">
+        <h2>Alexia's Uploaded Schedule</h2>
+        <div id="alexiaImages" class="image-list"></div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
+    const eventForm = document.getElementById("eventForm");
+    const imageForm = document.getElementById("imageForm");
+    const board = document.getElementById("board");
+    const status = document.getElementById("status");
+    const jaxonImages = document.getElementById("jaxonImages");
+    const alexiaImages = document.getElementById("alexiaImages");
+
+    function setStatus(message) {
+      status.textContent = message;
+    }
+
+    function formatTime(time) {
+      const [hour, minute] = time.split(":").map(Number);
+      const date = new Date();
+      date.setHours(hour, minute);
+      return date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+    }
+
+    async function getSchedules() {
+      const response = await fetch("/api/schedules");
+
+      if (!response.ok) {
+        throw new Error("Could not load schedules.");
+      }
+
+      return response.json();
+    }
+
+    function renderBoard(events) {
+      board.innerHTML = "";
+
+      days.forEach((day) => {
+        const column = document.createElement("section");
+        column.className = "day";
+
+        const heading = document.createElement("h2");
+        heading.textContent = day;
+        column.appendChild(heading);
+
+        const dayEvents = events
+          .filter((event) => event.day === day)
+          .sort((a, b) => a.startTime.localeCompare(b.startTime));
+
+        if (dayEvents.length === 0) {
+          const empty = document.createElement("div");
+          empty.className = "empty";
+          empty.textContent = "No items yet.";
+          column.appendChild(empty);
+        }
+
+        dayEvents.forEach((event) => {
+          const item = document.createElement("article");
+          item.className = "event " + event.person.toLowerCase();
+
+          const title = document.createElement("strong");
+          title.textContent = event.person + ": " + event.title;
+
+          const time = document.createElement("span");
+          time.textContent = formatTime(event.startTime) + " - " + formatTime(event.endTime);
+
+          const note = document.createElement("span");
+          note.textContent = event.note || "";
+
+          const button = document.createElement("button");
+          button.type = "button";
+          button.dataset.id = event.id;
+          button.textContent = "Delete";
+
+          item.append(title, time, note, button);
+          column.appendChild(item);
+        });
+
+        board.appendChild(column);
+      });
+    }
+
+    function renderImages(images) {
+      const groups = {
+        Jaxon: jaxonImages,
+        Alexia: alexiaImages
+      };
+
+      Object.values(groups).forEach((group) => {
+        group.innerHTML = "";
+      });
+
+      Object.entries(groups).forEach(([person, group]) => {
+        const personImages = images.filter((image) => image.person === person);
+
+        if (personImages.length === 0) {
+          group.innerHTML = '<div class="empty">No uploaded picture yet.</div>';
+          return;
+        }
+
+        personImages.forEach((scheduleImage) => {
+          const card = document.createElement("div");
+          card.className = "image-card";
+
+          const image = document.createElement("img");
+          image.src = scheduleImage.image;
+          image.alt = person + " schedule";
+
+          const button = document.createElement("button");
+          button.type = "button";
+          button.dataset.id = scheduleImage.id;
+          button.textContent = "Delete picture";
+
+          card.append(image, button);
+          group.appendChild(card);
+        });
+      });
+    }
+
+    async function renderSchedules() {
+      const schedules = await getSchedules();
+      renderBoard(schedules.events);
+      renderImages(schedules.images);
+    }
+
+    eventForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      setStatus("Saving...");
+
+      const payload = Object.fromEntries(new FormData(eventForm));
+      const response = await fetch("/api/schedules/events", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (response.ok) {
+        eventForm.reset();
+        setStatus("Saved.");
+        await renderSchedules();
+      } else {
+        setStatus("The schedule item could not be saved.");
+      }
+    });
+
+    imageForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      setStatus("Uploading...");
+
+      const response = await fetch("/api/schedules/images", {
+        method: "POST",
+        body: new FormData(imageForm)
+      });
+
+      if (response.ok) {
+        imageForm.reset();
+        setStatus("Uploaded.");
+        await renderSchedules();
+      } else {
+        setStatus("The picture could not be uploaded.");
+      }
+    });
+
+    board.addEventListener("click", async (event) => {
+      if (!event.target.matches("button")) {
+        return;
+      }
+
+      const response = await fetch("/api/schedules/events/" + event.target.dataset.id, {
+        method: "DELETE"
+      });
+
+      if (response.ok) {
+        await renderSchedules();
+      }
+    });
+
+    document.addEventListener("click", async (event) => {
+      if (!event.target.matches(".image-card button")) {
+        return;
+      }
+
+      const response = await fetch("/api/schedules/images/" + event.target.dataset.id, {
+        method: "DELETE"
+      });
+
+      if (response.ok) {
+        await renderSchedules();
+      }
+    });
+
+    renderSchedules().catch((error) => {
+      board.innerHTML = '<div class="empty">Start the server to load schedules.</div>';
+      setStatus(error.message);
+    });
+  </script>
+</body>
+</html>
