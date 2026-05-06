@@ -1,0 +1,13 @@
+FROM node:24-alpine
+
+WORKDIR /app
+
+COPY package.json ./
+RUN npm install --omit=dev
+
+COPY . .
+
+ENV STORAGE_DIR=/app/storage
+EXPOSE 3000
+
+CMD ["npm", "start"]

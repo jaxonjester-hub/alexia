@@ -1,0 +1,6 @@
+.git
+data
+uploads
+storage
+node_modules
+npm-debug.log
