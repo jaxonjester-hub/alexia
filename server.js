@@ -281,6 +281,128 @@ function queueGithubFileDelete(repoPath, message) {
   queueGithubSync(() => deleteFileFromGithub(repoPath, message));
 }
 
+function readJsonFile(filePath, fallback) {
+  if (!fs.existsSync(filePath)) {
+    return fallback;
+  }
+
+  return JSON.parse(fs.readFileSync(filePath, "utf8"));
+}
+
+async function readGithubJsonFile(repoPath) {
+  if (!isGithubSyncEnabled()) {
+    return null;
+  }
+
+  const encodedPath = encodeGitHubPath(repoPath);
+  const response = await githubRequest("GET", "/repos/" + githubRepo + "/contents/" + encodedPath + "?ref=" + encodeURIComponent(githubBranch));
+
+  if (response.statusCode === 404) {
+    return null;
+  }
+
+  if (response.statusCode < 200 || response.statusCode >= 300 || !response.data.content) {
+    throw new Error("GitHub could not read " + repoPath + ".");
+  }
+
+  const text = Buffer.from(response.data.content.replace(/\s/g, ""), "base64").toString("utf8");
+  return JSON.parse(text);
+}
+
+async function downloadGithubFile(repoPath, localPath) {
+  const encodedPath = encodeGitHubPath(repoPath);
+  const response = await githubRequest("GET", "/repos/" + githubRepo + "/contents/" + encodedPath + "?ref=" + encodeURIComponent(githubBranch));
+
+  if (response.statusCode === 404) {
+    return false;
+  }
+
+  if (response.statusCode < 200 || response.statusCode >= 300 || !response.data.content) {
+    throw new Error("GitHub could not download " + repoPath + ".");
+  }
+
+  fs.mkdirSync(path.dirname(localPath), { recursive: true });
+  fs.writeFileSync(localPath, Buffer.from(response.data.content.replace(/\s/g, ""), "base64"));
+  return true;
+}
+
+function writeMergedMemories(githubMemories) {
+  if (!Array.isArray(githubMemories)) {
+    return;
+  }
+
+  const storageMemories = readJsonFile(memoriesFile, []);
+  const mergedMemories = mergeArrayById(storageMemories, githubMemories).sort((a, b) => {
+    const firstDate = b.startDate || b.date || "";
+    const secondDate = a.startDate || a.date || "";
+    return firstDate.localeCompare(secondDate);
+  });
+
+  if (mergedMemories.length !== storageMemories.length || !fs.existsSync(memoriesFile)) {
+    fs.writeFileSync(memoriesFile, JSON.stringify(mergedMemories, null, 2));
+  }
+}
+
+function writeMergedSchedules(githubSchedules) {
+  if (!githubSchedules) {
+    return;
+  }
+
+  const storageSchedules = readJsonFile(schedulesFile, { events: [], images: [] });
+  const mergedSchedules = {
+    events: mergeArrayById(storageSchedules.events || [], githubSchedules.events || []),
+    images: mergeArrayById(storageSchedules.images || [], githubSchedules.images || [])
+  };
+
+  if (
+    mergedSchedules.events.length !== (storageSchedules.events || []).length ||
+    mergedSchedules.images.length !== (storageSchedules.images || []).length ||
+    !fs.existsSync(schedulesFile)
+  ) {
+    fs.writeFileSync(schedulesFile, JSON.stringify(mergedSchedules, null, 2));
+  }
+}
+
+async function importGithubUploads() {
+  const response = await githubRequest("GET", "/repos/" + githubRepo + "/contents/uploads?ref=" + encodeURIComponent(githubBranch));
+
+  if (response.statusCode === 404) {
+    return;
+  }
+
+  if (response.statusCode < 200 || response.statusCode >= 300 || !Array.isArray(response.data)) {
+    throw new Error("GitHub could not list uploads.");
+  }
+
+  for (const item of response.data) {
+    const extension = path.extname(item.name || "").toLowerCase();
+
+    if (item.type !== "file" || ![".jpg", ".jpeg", ".png", ".gif", ".webp"].includes(extension)) {
+      continue;
+    }
+
+    const localPath = path.join(uploadsDir, item.name);
+
+    if (!fs.existsSync(localPath)) {
+      await downloadGithubFile("uploads/" + item.name, localPath);
+    }
+  }
+}
+
+async function importFromGithubAtStartup() {
+  if (!isGithubSyncEnabled()) {
+    return;
+  }
+
+  try {
+    writeMergedMemories(await readGithubJsonFile("data/memories.json"));
+    writeMergedSchedules(await readGithubJsonFile("data/schedules.json"));
+    await importGithubUploads();
+  } catch (error) {
+    console.error("GitHub startup import failed:", error.message);
+  }
+}
+
 function sendJson(response, status, value) {
   response.writeHead(status, { "Content-Type": "application/json; charset=utf-8" });
   response.end(JSON.stringify(value));
@@ -780,8 +902,10 @@ const server = http.createServer(async (request, response) => {
 });
 
 if (require.main === module) {
-  server.listen(port, "0.0.0.0", () => {
-  console.log("Alexia timeline server running at http://localhost:" + port);
+  importFromGithubAtStartup().finally(() => {
+    server.listen(port, "0.0.0.0", () => {
+      console.log("Alexia timeline server running at http://localhost:" + port);
+    });
   });
 }
 
