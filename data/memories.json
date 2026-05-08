@@ -1,1 +1,66 @@
-[]
+[
+  {
+    "id": "927fed51-b5a3-451b-8ef8-49db303dc83f",
+    "date": "2025-04-18",
+    "startDate": "2025-04-18",
+    "endDate": "2025-04-21",
+    "title": "Philly",
+    "note": "Our trip to philly. I've always wanted to go back. Great memories here, and the airbnb was really nice.",
+    "photos": [
+      "/uploads/6894f9e6-9b1e-408a-b26a-be27f2ce2f15.jpg",
+      "/uploads/0d1996a4-4509-4c31-991b-970063852ebf.jpg",
+      "/uploads/ee39562e-a53e-44b5-a6e6-5506e4f71155.jpg",
+      "/uploads/56d11726-cf41-4d93-8f99-bf7415a3d898.jpg",
+      "/uploads/98dacd8b-ee1b-4307-a0f6-51c6b716c1ab.jpg",
+      "/uploads/baba1176-f5df-44fe-8db4-f454a1da23a1.jpg",
+      "/uploads/39edefa3-65b7-45df-a6fc-f5d75c7a52cc.jpg",
+      "/uploads/97dc52d3-5073-4987-bca9-c5f0f6e367f5.jpg",
+      "/uploads/93031ad0-2d34-467d-9f12-a98cc6a18d11.jpg",
+      "/uploads/86b0e400-41dc-4c82-9fab-017d14f6dcb1.jpg",
+      "/uploads/40a18ab3-824e-49b0-9423-df3db32dc68a.jpg",
+      "/uploads/5dbb2627-8b9e-47ed-acb9-c6a243a84f3f.jpg",
+      "/uploads/822a23e5-8ec0-4389-b4c1-ae7ec88a74d2.jpg",
+      "/uploads/2fe54257-c425-4988-b750-de79738101bf.jpg",
+      "/uploads/2128b601-ff6c-4729-b93a-595c10c173b0.jpg"
+    ],
+    "coverPhoto": "/uploads/2128b601-ff6c-4729-b93a-595c10c173b0.jpg",
+    "createdAt": "2026-05-08T13:15:27.580Z"
+  },
+  {
+    "id": "d58b76fa-7899-4e46-be02-45651fa67dc0",
+    "date": "2025-01-17",
+    "startDate": "2025-01-17",
+    "endDate": "2025-01-20",
+    "title": "NYC",
+    "note": "Our first NYC trip!! This is when we officially started dating. One of our best trips.",
+    "photos": [
+      "/uploads/e8b4e535-d2e3-4d00-b048-4b19b158a177.jpg",
+      "/uploads/1235afa6-aeeb-42e2-aa7f-314a972c2419.jpg",
+      "/uploads/b9a583c7-6653-4252-aec8-40f4deec3b6a.jpg",
+      "/uploads/6c401d7d-3693-4988-8004-1d6ecc750f65.jpg",
+      "/uploads/0c7a1325-f190-4953-b97c-074045709222.jpg",
+      "/uploads/5f210d64-0659-4941-8fee-b4ba0f98c3eb.jpg",
+      "/uploads/a1c4637d-d155-4026-93db-844953326894.jpg",
+      "/uploads/a2f3ff48-e2ca-45bd-b22e-492f83ff9898.jpg",
+      "/uploads/36cdd016-f310-40e0-bc57-be82b91f63cb.jpg",
+      "/uploads/45acb0cd-00d4-4a8f-9fc8-b3280fc3583a.jpg",
+      "/uploads/c4f6d4c9-f8ef-42b1-a09d-d7e5528eba47.jpg",
+      "/uploads/cefa5297-a1a3-4a4c-80f0-fb3036f77921.jpg",
+      "/uploads/b1a8a762-3c91-4fd6-9d0a-7752a8a5b052.jpg",
+      "/uploads/b29ab039-ec45-4ce7-9105-4f3356a3c0e5.jpg",
+      "/uploads/ac2af217-7d59-4dc2-8574-c0ef805399f6.jpg",
+      "/uploads/cdd48e2c-a0d6-4c10-80ee-f615a121e1b2.jpg",
+      "/uploads/4b8ed939-9fde-4d3a-8c0f-e40efcb57a7f.jpg",
+      "/uploads/17c9dea4-4333-45a0-b0d8-452fae6d5860.jpg",
+      "/uploads/a9c29dfe-d1e6-4206-8d12-04455429d6d4.jpg",
+      "/uploads/264ce70c-53b6-4987-b6d4-4e7767cc1cc7.jpg",
+      "/uploads/23a830b6-4e02-4720-99e2-b73f43920279.jpg",
+      "/uploads/1e50f223-b41d-49c7-a585-d5fc2b3d8434.jpg",
+      "/uploads/f5719312-7d37-49ca-a805-018d47f14f11.jpg",
+      "/uploads/3d1334fd-02c8-40d1-9a92-ab64cfdacc99.jpg",
+      "/uploads/41bdc67f-d1c9-4e87-aff4-06332bd819c4.jpg"
+    ],
+    "coverPhoto": "/uploads/e8b4e535-d2e3-4d00-b048-4b19b158a177.jpg",
+    "createdAt": "2026-05-06T22:33:43.391Z"
+  }
+]

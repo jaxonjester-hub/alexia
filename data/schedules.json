@@ -1,4 +1,11 @@
 {
   "events": [],
-  "images": []
+  "images": [
+    {
+      "id": "0a40af6f-ecd6-4f61-859a-a3d41a09a2fb",
+      "person": "Jaxon",
+      "image": "/uploads/cf189580-88f7-4c70-b305-5243df370fcb.png",
+      "createdAt": "2026-05-07T01:00:42.610Z"
+    }
+  ]
 }

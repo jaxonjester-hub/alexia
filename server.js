@@ -134,6 +134,28 @@ function normalizeMemory(memory) {
   };
 }
 
+function saveUploadedPhotos(photos) {
+  return photos.map((photo) => {
+    const extension = safeUploadExtension(photo.contentType, photo.filename);
+    const uploadName = crypto.randomUUID() + extension;
+    const uploadPath = path.join(uploadsDir, uploadName);
+    fs.writeFileSync(uploadPath, photo.data);
+    return "/uploads/" + uploadName;
+  });
+}
+
+function deleteUploadedFile(filePath) {
+  if (!filePath || !filePath.startsWith("/uploads/")) {
+    return;
+  }
+
+  const uploadPath = path.normalize(path.join(storageDir, filePath));
+
+  if (uploadPath.startsWith(uploadsDir) && fs.existsSync(uploadPath)) {
+    fs.unlinkSync(uploadPath);
+  }
+}
+
 async function handleCreateMemory(request, response) {
   const contentType = request.headers["content-type"] || "";
   const boundary = contentType.match(/boundary=(.+)$/);
@@ -160,13 +182,7 @@ async function handleCreateMemory(request, response) {
     return;
   }
 
-  const savedPhotos = uploadedPhotos.map((photo) => {
-    const extension = safeUploadExtension(photo.contentType, photo.filename);
-    const uploadName = crypto.randomUUID() + extension;
-    const uploadPath = path.join(uploadsDir, uploadName);
-    fs.writeFileSync(uploadPath, photo.data);
-    return "/uploads/" + uploadName;
-  });
+  const savedPhotos = saveUploadedPhotos(uploadedPhotos);
 
   const memory = {
     id: crypto.randomUUID(),
@@ -187,6 +203,47 @@ async function handleCreateMemory(request, response) {
   sendJson(response, 201, memory);
 }
 
+async function handleAddMemoryPhotos(request, response, id) {
+  const contentType = request.headers["content-type"] || "";
+  const boundary = contentType.match(/boundary=(.+)$/);
+
+  if (!boundary) {
+    sendJson(response, 400, { error: "Missing upload boundary." });
+    return;
+  }
+
+  const body = await readBody(request);
+  const parts = parseMultipart(body, boundary[1]);
+  const photos = parts.filter((part) => part.name === "photos" && part.filename && part.data.length > 0);
+  const memories = readMemories().map(normalizeMemory);
+  const memory = memories.find((item) => item.id === id);
+
+  if (!memory) {
+    sendJson(response, 404, { error: "Trip not found." });
+    return;
+  }
+
+  if (photos.length === 0) {
+    sendJson(response, 400, { error: "Choose at least one picture." });
+    return;
+  }
+
+  if (photos.some((photo) => !photo.contentType.startsWith("image/"))) {
+    sendJson(response, 400, { error: "The upload must be an image." });
+    return;
+  }
+
+  const savedPhotos = saveUploadedPhotos(photos);
+  memory.photos.push(...savedPhotos);
+
+  if (!memory.coverPhoto) {
+    memory.coverPhoto = memory.photos[0];
+  }
+
+  saveMemories(memories);
+  sendJson(response, 201, memory);
+}
+
 function handleDeleteMemory(request, response, id) {
   const memories = readMemories().map(normalizeMemory);
   const memory = memories.find((item) => item.id === id);
@@ -200,18 +257,51 @@ function handleDeleteMemory(request, response, id) {
   saveMemories(remaining);
 
   memory.photos.forEach((photo) => {
-    if (!photo.startsWith("/uploads/")) {
-      return;
-    }
-
-    const uploadPath = path.join(storageDir, photo);
-
-    if (uploadPath.startsWith(uploadsDir) && fs.existsSync(uploadPath)) {
-      fs.unlinkSync(uploadPath);
-    }
+    deleteUploadedFile(photo);
   });
 
   sendJson(response, 200, { ok: true });
+}
+
+async function handleDeleteMemoryPhoto(request, response, id) {
+  const body = await readBody(request);
+  const payload = JSON.parse(body.toString("utf8") || "{}");
+  const photosToDelete = Array.isArray(payload.photos) ? payload.photos : payload.photo ? [payload.photo] : [];
+  const uniquePhotosToDelete = [...new Set(photosToDelete)];
+  const memories = readMemories().map(normalizeMemory);
+  const memory = memories.find((item) => item.id === id);
+
+  if (!memory) {
+    sendJson(response, 404, { error: "Trip not found." });
+    return;
+  }
+
+  if (uniquePhotosToDelete.length === 0) {
+    sendJson(response, 400, { error: "Choose at least one picture to delete." });
+    return;
+  }
+
+  if (uniquePhotosToDelete.some((photo) => !memory.photos.includes(photo))) {
+    sendJson(response, 400, { error: "One of those photos does not belong to this trip." });
+    return;
+  }
+
+  const remainingPhotos = memory.photos.filter((photo) => !uniquePhotosToDelete.includes(photo));
+
+  if (remainingPhotos.length === 0) {
+    sendJson(response, 400, { error: "A trip needs at least one picture. Delete the trip instead." });
+    return;
+  }
+
+  memory.photos = remainingPhotos;
+
+  if (uniquePhotosToDelete.includes(memory.coverPhoto)) {
+    memory.coverPhoto = memory.photos[0];
+  }
+
+  saveMemories(memories);
+  uniquePhotosToDelete.forEach(deleteUploadedFile);
+  sendJson(response, 200, memory);
 }
 
 async function handleUpdateCoverPhoto(request, response, id) {
@@ -380,6 +470,18 @@ const server = http.createServer(async (request, response) => {
 
     if (request.method === "POST" && url.pathname === "/api/memories") {
       await handleCreateMemory(request, response);
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname.startsWith("/api/memories/") && url.pathname.endsWith("/photos")) {
+      const parts = url.pathname.split("/");
+      await handleAddMemoryPhotos(request, response, parts[3]);
+      return;
+    }
+
+    if (request.method === "DELETE" && url.pathname.startsWith("/api/memories/") && url.pathname.endsWith("/photos")) {
+      const parts = url.pathname.split("/");
+      await handleDeleteMemoryPhoto(request, response, parts[3]);
       return;
     }
 

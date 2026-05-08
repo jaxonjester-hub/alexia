@@ -206,6 +206,15 @@
       margin: 0 0 14px;
     }
 
+    .trip-actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .add-photo-button,
+    .delete-photos-button,
     .delete-button {
       background: transparent;
       border: 1px solid #e9a9bf;
@@ -213,6 +222,8 @@
       padding: 8px 12px;
     }
 
+    .add-photo-button:hover,
+    .delete-photos-button:hover,
     .delete-button:hover {
       background: #ffeef4;
     }
@@ -245,6 +256,21 @@
       margin: 0;
     }
 
+    .viewer-actions {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .viewer-status {
+      color: white;
+      font-weight: bold;
+      margin: 0;
+      min-height: 20px;
+      width: 100%;
+    }
+
     .viewer-close {
       background: white;
       color: #333;
@@ -265,6 +291,16 @@
       align-content: start;
     }
 
+    .viewer-photo button {
+      display: block;
+      width: 100%;
+      border: 0;
+      border-radius: 8px;
+      padding: 0;
+      background: transparent;
+      cursor: zoom-in;
+    }
+
     .viewer-photo img {
       width: 100%;
       aspect-ratio: 4 / 3;
@@ -273,18 +309,107 @@
       background: #f5c7d7;
     }
 
+    .viewer-photo.current img {
+      outline: 4px solid #ff2f7d;
+      outline-offset: -4px;
+    }
+
+    .viewer.selecting-cover .viewer-photo button {
+      cursor: pointer;
+    }
+
+    .viewer.selecting-cover .viewer-photo button:hover img {
+      outline: 4px solid white;
+      outline-offset: -4px;
+    }
+
+    .viewer.deleting-photos .viewer-photo button {
+      cursor: pointer;
+    }
+
+    .viewer-photo.selected img {
+      outline: 4px solid #ffffff;
+      outline-offset: -4px;
+      filter: brightness(0.72);
+    }
+
+    .viewer-photo.selected::after {
+      align-self: start;
+      background: white;
+      border-radius: 999px;
+      color: #8f3150;
+      content: "Selected";
+      font-weight: bold;
+      justify-self: center;
+      margin-top: -46px;
+      padding: 8px 12px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .photo-label {
+      color: white;
+      font-weight: bold;
+      min-height: 20px;
+      text-align: center;
+    }
+
     .cover-button {
       background: white;
       color: #8f3150;
-      border: 2px solid transparent;
-      border-radius: 8px;
       padding: 9px 12px;
-      width: 100%;
     }
 
     .cover-button.active {
-      border-color: #d94d7b;
       background: #ffeef4;
+      color: #333;
+    }
+
+    .delete-mode-button {
+      background: white;
+      color: #8f3150;
+      padding: 8px 12px;
+    }
+
+    .delete-mode-button.active,
+    .confirm-delete-button {
+      background: #d94d7b;
+      color: white;
+      padding: 8px 12px;
+    }
+
+    .confirm-delete-button:disabled {
+      cursor: not-allowed;
+      opacity: 0.55;
+    }
+
+    .photo-lightbox {
+      position: fixed;
+      inset: 0;
+      display: none;
+      place-items: center;
+      background: rgba(15, 10, 13, 0.94);
+      z-index: 30;
+      padding: 20px;
+    }
+
+    .photo-lightbox.open {
+      display: grid;
+    }
+
+    .photo-lightbox img {
+      max-width: 96vw;
+      max-height: 88vh;
+      object-fit: contain;
+      border-radius: 8px;
+      background: white;
+    }
+
+    .lightbox-close {
+      position: fixed;
+      right: 18px;
+      top: 18px;
+      background: white;
       color: #333;
     }
 
@@ -349,25 +474,50 @@
     </form>
 
     <section id="timeline" class="timeline" aria-live="polite"></section>
+    <input id="tripPhotoInput" type="file" accept="image/*" multiple hidden>
   </main>
 
   <div id="viewer" class="viewer" aria-hidden="true">
     <div class="viewer-header">
       <p id="viewerTitle" class="viewer-title"></p>
-      <button id="viewerClose" class="viewer-close" type="button">Close</button>
+      <div class="viewer-actions">
+        <button id="coverModeButton" class="cover-button" type="button">Make cover</button>
+        <button id="deleteModeButton" class="delete-mode-button" type="button">Delete photos</button>
+        <button id="confirmDeleteButton" class="confirm-delete-button" type="button" hidden disabled>Are you sure? Delete selected</button>
+        <button id="viewerClose" class="viewer-close" type="button">Close</button>
+        <p id="viewerStatus" class="viewer-status"></p>
+      </div>
     </div>
     <div id="viewerGrid" class="viewer-grid"></div>
+  </div>
+
+  <div id="photoLightbox" class="photo-lightbox" aria-hidden="true">
+    <button id="lightboxClose" class="lightbox-close" type="button">Close</button>
+    <img id="lightboxImage" alt="">
   </div>
 
   <script>
     const form = document.getElementById("tripForm");
     const timeline = document.getElementById("timeline");
     const status = document.getElementById("status");
+    const tripPhotoInput = document.getElementById("tripPhotoInput");
     const viewer = document.getElementById("viewer");
     const viewerTitle = document.getElementById("viewerTitle");
     const viewerGrid = document.getElementById("viewerGrid");
     const viewerClose = document.getElementById("viewerClose");
+    const coverModeButton = document.getElementById("coverModeButton");
+    const deleteModeButton = document.getElementById("deleteModeButton");
+    const confirmDeleteButton = document.getElementById("confirmDeleteButton");
+    const viewerStatus = document.getElementById("viewerStatus");
+    const photoLightbox = document.getElementById("photoLightbox");
+    const lightboxImage = document.getElementById("lightboxImage");
+    const lightboxClose = document.getElementById("lightboxClose");
     let currentTrips = [];
+    let openTrip = null;
+    let photoUploadTripId = "";
+    let selectingCover = false;
+    let deletingPhotos = false;
+    let selectedPhotos = new Set();
 
     function setStatus(message) {
       status.textContent = message;
@@ -448,36 +598,68 @@
         deleteButton.dataset.id = trip.id;
         deleteButton.textContent = "Delete trip";
 
-        body.append(date, title, note, deleteButton);
+        const addPhotoButton = document.createElement("button");
+        addPhotoButton.className = "add-photo-button";
+        addPhotoButton.type = "button";
+        addPhotoButton.dataset.id = trip.id;
+        addPhotoButton.textContent = "Add photos";
+
+        const deletePhotosButton = document.createElement("button");
+        deletePhotosButton.className = "delete-photos-button";
+        deletePhotosButton.type = "button";
+        deletePhotosButton.dataset.id = trip.id;
+        deletePhotosButton.textContent = "Delete photos";
+
+        const actions = document.createElement("div");
+        actions.className = "trip-actions";
+        actions.append(addPhotoButton, deletePhotosButton, deleteButton);
+
+        body.append(date, title, note, actions);
         article.append(cover, body);
         timeline.appendChild(article);
       });
     }
 
     function openViewer(trip) {
+      openTrip = trip;
+      selectingCover = false;
+      deletingPhotos = false;
+      selectedPhotos = new Set();
       viewerTitle.textContent = trip.title + " photos";
       viewerGrid.innerHTML = "";
+      viewer.classList.remove("selecting-cover");
+      viewer.classList.remove("deleting-photos");
+      coverModeButton.classList.remove("active");
+      deleteModeButton.classList.remove("active");
+      coverModeButton.textContent = "Make cover";
+      deleteModeButton.textContent = "Delete photos";
+      confirmDeleteButton.hidden = true;
+      confirmDeleteButton.disabled = true;
+      confirmDeleteButton.textContent = "Are you sure? Delete selected";
+      viewerStatus.textContent = "";
 
       trip.photos.forEach((photo) => {
         const item = document.createElement("div");
         item.className = "viewer-photo";
 
+        if (photo === trip.coverPhoto) {
+          item.classList.add("current");
+        }
+
+        const photoButton = document.createElement("button");
+        photoButton.type = "button";
+        photoButton.dataset.photo = photo;
+
         const image = document.createElement("img");
         image.src = photo;
         image.alt = "";
 
-        const coverButton = document.createElement("button");
-        coverButton.className = "cover-button";
-        coverButton.type = "button";
-        coverButton.dataset.tripId = trip.id;
-        coverButton.dataset.photo = photo;
-        coverButton.textContent = photo === trip.coverPhoto ? "Current cover" : "Make cover";
+        const label = document.createElement("div");
+        label.className = "photo-label";
+        label.textContent = photo === trip.coverPhoto ? "Current cover" : "";
 
-        if (photo === trip.coverPhoto) {
-          coverButton.classList.add("active");
-        }
-
-        item.append(image, coverButton);
+        photoButton.appendChild(image);
+        item.append(photoButton, label);
         viewerGrid.appendChild(item);
       });
 
@@ -487,7 +669,83 @@
 
     function closeViewer() {
       viewer.classList.remove("open");
+      viewer.classList.remove("selecting-cover");
+      viewer.classList.remove("deleting-photos");
       viewer.setAttribute("aria-hidden", "true");
+      openTrip = null;
+      selectingCover = false;
+      deletingPhotos = false;
+      selectedPhotos = new Set();
+    }
+
+    function updateDeleteControls() {
+      const selectedCount = selectedPhotos.size;
+      const wouldDeleteEveryPhoto = openTrip && selectedCount >= openTrip.photos.length;
+      confirmDeleteButton.disabled = selectedCount === 0 || wouldDeleteEveryPhoto;
+      confirmDeleteButton.textContent = selectedCount === 0 || wouldDeleteEveryPhoto
+        ? "Are you sure? Delete selected"
+        : "Are you sure? Delete " + selectedCount;
+
+      if (wouldDeleteEveryPhoto) {
+        viewerStatus.textContent = "A trip needs at least one picture. Leave one photo or delete the whole trip.";
+      } else if (deletingPhotos) {
+        viewerStatus.textContent = selectedCount === 0 ? "Select the photos you want to delete." : "";
+      }
+    }
+
+    function enterDeleteMode() {
+      deletingPhotos = true;
+      selectingCover = false;
+      selectedPhotos = new Set();
+      viewer.classList.add("deleting-photos");
+      viewer.classList.remove("selecting-cover");
+      deleteModeButton.classList.add("active");
+      deleteModeButton.textContent = "Cancel delete";
+      coverModeButton.classList.remove("active");
+      coverModeButton.textContent = "Make cover";
+      confirmDeleteButton.hidden = false;
+      viewerStatus.textContent = "Select the photos you want to delete.";
+      viewerGrid.querySelectorAll(".viewer-photo.selected").forEach((item) => item.classList.remove("selected"));
+      updateDeleteControls();
+    }
+
+    function exitDeleteMode() {
+      deletingPhotos = false;
+      selectedPhotos = new Set();
+      viewer.classList.remove("deleting-photos");
+      deleteModeButton.classList.remove("active");
+      deleteModeButton.textContent = "Delete photos";
+      confirmDeleteButton.hidden = true;
+      viewerStatus.textContent = "";
+      viewerGrid.querySelectorAll(".viewer-photo.selected").forEach((item) => item.classList.remove("selected"));
+      updateDeleteControls();
+    }
+
+    function togglePhotoSelection(photoButton) {
+      const photo = photoButton.dataset.photo;
+      const item = photoButton.closest(".viewer-photo");
+
+      if (selectedPhotos.has(photo)) {
+        selectedPhotos.delete(photo);
+        item.classList.remove("selected");
+      } else {
+        selectedPhotos.add(photo);
+        item.classList.add("selected");
+      }
+
+      updateDeleteControls();
+    }
+
+    function openLightbox(photo) {
+      lightboxImage.src = photo;
+      photoLightbox.classList.add("open");
+      photoLightbox.setAttribute("aria-hidden", "false");
+    }
+
+    function closeLightbox() {
+      photoLightbox.classList.remove("open");
+      photoLightbox.setAttribute("aria-hidden", "true");
+      lightboxImage.src = "";
     }
 
     form.addEventListener("submit", async (event) => {
@@ -526,6 +784,28 @@
         return;
       }
 
+      const addPhotoButton = event.target.closest(".add-photo-button");
+
+      if (addPhotoButton) {
+        photoUploadTripId = addPhotoButton.dataset.id;
+        tripPhotoInput.value = "";
+        tripPhotoInput.click();
+        return;
+      }
+
+      const deletePhotosButton = event.target.closest(".delete-photos-button");
+
+      if (deletePhotosButton) {
+        const trip = currentTrips.find((item) => item.id === deletePhotosButton.dataset.id);
+
+        if (trip) {
+          openViewer(trip);
+          enterDeleteMode();
+        }
+
+        return;
+      }
+
       if (!event.target.matches(".delete-button")) {
         return;
       }
@@ -539,6 +819,45 @@
       }
     });
 
+    tripPhotoInput.addEventListener("change", async () => {
+      if (!photoUploadTripId || tripPhotoInput.files.length === 0) {
+        return;
+      }
+
+      const data = new FormData();
+
+      Array.from(tripPhotoInput.files).forEach((file) => {
+        data.append("photos", file);
+      });
+
+      setStatus("Adding photos...");
+
+      try {
+        const response = await fetch("/api/memories/" + photoUploadTripId + "/photos", {
+          method: "POST",
+          body: data
+        });
+
+        if (!response.ok) {
+          const details = await response.json();
+          throw new Error(details.error || "The photos could not be added.");
+        }
+
+        const updatedTrip = await response.json();
+        setStatus("Photos added.");
+        await renderTimeline();
+
+        if (openTrip && openTrip.id === updatedTrip.id) {
+          openViewer(updatedTrip);
+        }
+      } catch (error) {
+        setStatus(error.message);
+      } finally {
+        photoUploadTripId = "";
+        tripPhotoInput.value = "";
+      }
+    });
+
     viewerClose.addEventListener("click", closeViewer);
     viewer.addEventListener("click", (event) => {
       if (event.target === viewer) {
@@ -546,18 +865,95 @@
       }
     });
 
-    viewerGrid.addEventListener("click", async (event) => {
-      if (!event.target.matches(".cover-button")) {
+    coverModeButton.addEventListener("click", () => {
+      selectingCover = !selectingCover;
+      deletingPhotos = false;
+      selectedPhotos = new Set();
+      viewer.classList.toggle("selecting-cover", selectingCover);
+      viewer.classList.remove("deleting-photos");
+      coverModeButton.classList.toggle("active", selectingCover);
+      coverModeButton.textContent = selectingCover ? "Choose a photo" : "Make cover";
+      deleteModeButton.classList.remove("active");
+      deleteModeButton.textContent = "Delete photos";
+      confirmDeleteButton.hidden = true;
+      confirmDeleteButton.disabled = true;
+      viewerGrid.querySelectorAll(".viewer-photo.selected").forEach((item) => item.classList.remove("selected"));
+    });
+
+    deleteModeButton.addEventListener("click", () => {
+      if (deletingPhotos) {
+        exitDeleteMode();
+      } else {
+        enterDeleteMode();
+      }
+    });
+
+    confirmDeleteButton.addEventListener("click", async () => {
+      if (!openTrip || selectedPhotos.size === 0) {
         return;
       }
 
-      const response = await fetch("/api/memories/" + event.target.dataset.tripId, {
+      try {
+        confirmDeleteButton.disabled = true;
+        viewerStatus.textContent = "Deleting photos...";
+
+        const response = await fetch("/api/memories/" + openTrip.id + "/photos", {
+          method: "DELETE",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            photos: Array.from(selectedPhotos)
+          })
+        });
+
+        if (!response.ok) {
+          const details = await response.json();
+          throw new Error(details.error || "The photos could not be deleted.");
+        }
+
+        const updatedTrip = await response.json();
+        const index = currentTrips.findIndex((trip) => trip.id === updatedTrip.id);
+
+        if (index !== -1) {
+          currentTrips[index] = updatedTrip;
+        }
+
+        await renderTimeline();
+        openViewer(updatedTrip);
+        setStatus("Photos deleted.");
+        viewerStatus.textContent = "Photos deleted.";
+      } catch (error) {
+        setStatus(error.message);
+        viewerStatus.textContent = error.message;
+        updateDeleteControls();
+      }
+    });
+
+    viewerGrid.addEventListener("click", async (event) => {
+      const photoButton = event.target.closest(".viewer-photo button");
+
+      if (!photoButton || !openTrip) {
+        return;
+      }
+
+      if (deletingPhotos) {
+        togglePhotoSelection(photoButton);
+        return;
+      }
+
+      if (!selectingCover) {
+        openLightbox(photoButton.dataset.photo);
+        return;
+      }
+
+      const response = await fetch("/api/memories/" + openTrip.id, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          coverPhoto: event.target.dataset.photo
+          coverPhoto: photoButton.dataset.photo
         })
       });
 
@@ -578,8 +974,16 @@
       setStatus("Cover photo updated.");
     });
 
+    lightboxClose.addEventListener("click", closeLightbox);
+    photoLightbox.addEventListener("click", (event) => {
+      if (event.target === photoLightbox) {
+        closeLightbox();
+      }
+    });
+
     document.addEventListener("keydown", (event) => {
       if (event.key === "Escape") {
+        closeLightbox();
         closeViewer();
       }
     });
