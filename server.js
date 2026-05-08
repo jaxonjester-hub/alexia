@@ -199,6 +199,33 @@ function githubRequest(method, apiPath, body) {
   });
 }
 
+function downloadUrlToFile(fileUrl, localPath) {
+  return new Promise((resolve, reject) => {
+    const request = https.get(fileUrl, {
+      headers: {
+        "Authorization": "Bearer " + githubToken,
+        "User-Agent": "alexia-timeline"
+      }
+    }, (response) => {
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        response.resume();
+        reject(new Error("GitHub could not download an image."));
+        return;
+      }
+
+      fs.mkdirSync(path.dirname(localPath), { recursive: true });
+      const file = fs.createWriteStream(localPath);
+      response.pipe(file);
+      file.on("finish", () => {
+        file.close(resolve);
+      });
+      file.on("error", reject);
+    });
+
+    request.on("error", reject);
+  });
+}
+
 async function getGithubFileSha(repoPath) {
   const encodedPath = encodeGitHubPath(repoPath);
   const response = await githubRequest("GET", "/repos/" + githubRepo + "/contents/" + encodedPath + "?ref=" + encodeURIComponent(githubBranch));
@@ -309,12 +336,22 @@ async function readGithubJsonFile(repoPath) {
   return JSON.parse(text);
 }
 
-async function downloadGithubFile(repoPath, localPath) {
+async function downloadGithubFile(repoPath, localPath, downloadUrl = "") {
+  if (downloadUrl) {
+    await downloadUrlToFile(downloadUrl, localPath);
+    return true;
+  }
+
   const encodedPath = encodeGitHubPath(repoPath);
   const response = await githubRequest("GET", "/repos/" + githubRepo + "/contents/" + encodedPath + "?ref=" + encodeURIComponent(githubBranch));
 
   if (response.statusCode === 404) {
     return false;
+  }
+
+  if (response.data.download_url) {
+    await downloadUrlToFile(response.data.download_url, localPath);
+    return true;
   }
 
   if (response.statusCode < 200 || response.statusCode >= 300 || !response.data.content) {
@@ -383,8 +420,8 @@ async function importGithubUploads() {
 
     const localPath = path.join(uploadsDir, item.name);
 
-    if (!fs.existsSync(localPath)) {
-      await downloadGithubFile("uploads/" + item.name, localPath);
+    if (!fs.existsSync(localPath) || fs.statSync(localPath).size === 0) {
+      await downloadGithubFile("uploads/" + item.name, localPath, item.download_url);
     }
   }
 }
