@@ -59,6 +59,74 @@ function seedFileFromRepo(repoFile, storageFile, shouldReplaceEmptyArray = false
   }
 }
 
+function mergeArrayById(existingItems, repoItems) {
+  const merged = [...existingItems];
+  const existingIds = new Set(existingItems.map((item) => item.id).filter(Boolean));
+
+  repoItems.forEach((item) => {
+    if (!item.id || existingIds.has(item.id)) {
+      return;
+    }
+
+    merged.push(item);
+    existingIds.add(item.id);
+  });
+
+  return merged;
+}
+
+function seedMemoriesFromRepo() {
+  const repoFile = path.join(repoDataDir, "memories.json");
+
+  if (!fs.existsSync(repoFile)) {
+    return;
+  }
+
+  if (!fs.existsSync(memoriesFile) || isEmptyJsonArray(memoriesFile)) {
+    fs.copyFileSync(repoFile, memoriesFile);
+    return;
+  }
+
+  const storageMemories = JSON.parse(fs.readFileSync(memoriesFile, "utf8"));
+  const repoMemories = JSON.parse(fs.readFileSync(repoFile, "utf8"));
+  const mergedMemories = mergeArrayById(storageMemories, repoMemories).sort((a, b) => {
+    const firstDate = b.startDate || b.date || "";
+    const secondDate = a.startDate || a.date || "";
+    return firstDate.localeCompare(secondDate);
+  });
+
+  if (mergedMemories.length !== storageMemories.length) {
+    fs.writeFileSync(memoriesFile, JSON.stringify(mergedMemories, null, 2));
+  }
+}
+
+function seedSchedulesFromRepo() {
+  const repoFile = path.join(repoDataDir, "schedules.json");
+
+  if (!fs.existsSync(repoFile)) {
+    return;
+  }
+
+  if (!fs.existsSync(schedulesFile)) {
+    fs.copyFileSync(repoFile, schedulesFile);
+    return;
+  }
+
+  const storageSchedules = JSON.parse(fs.readFileSync(schedulesFile, "utf8"));
+  const repoSchedules = JSON.parse(fs.readFileSync(repoFile, "utf8"));
+  const mergedSchedules = {
+    events: mergeArrayById(storageSchedules.events || [], repoSchedules.events || []),
+    images: mergeArrayById(storageSchedules.images || [], repoSchedules.images || [])
+  };
+
+  if (
+    mergedSchedules.events.length !== (storageSchedules.events || []).length ||
+    mergedSchedules.images.length !== (storageSchedules.images || []).length
+  ) {
+    fs.writeFileSync(schedulesFile, JSON.stringify(mergedSchedules, null, 2));
+  }
+}
+
 function seedUploadsFromRepo() {
   if (path.resolve(repoUploadsDir) === path.resolve(uploadsDir) || !fs.existsSync(repoUploadsDir)) {
     return;
@@ -79,8 +147,8 @@ function seedUploadsFromRepo() {
 }
 
 if (path.resolve(storageDir) !== path.resolve(root)) {
-  seedFileFromRepo(path.join(repoDataDir, "memories.json"), memoriesFile, true);
-  seedFileFromRepo(path.join(repoDataDir, "schedules.json"), schedulesFile);
+  seedMemoriesFromRepo();
+  seedSchedulesFromRepo();
   seedUploadsFromRepo();
 }
 
