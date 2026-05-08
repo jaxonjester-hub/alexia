@@ -290,22 +290,26 @@ async function deleteFileFromGithub(repoPath, message) {
 
 let githubSyncQueue = Promise.resolve();
 
-function queueGithubSync(task) {
+function queueGithubSync(task, waitForGithub = false) {
   if (!isGithubSyncEnabled()) {
-    return;
+    return Promise.resolve();
   }
 
-  githubSyncQueue = githubSyncQueue.then(task).catch((error) => {
+  const syncTask = githubSyncQueue.then(task);
+
+  githubSyncQueue = syncTask.catch((error) => {
     console.error("GitHub sync failed:", error.message);
   });
+
+  return waitForGithub ? syncTask : githubSyncQueue;
 }
 
-function queueGithubFileSync(localPath, repoPath, message) {
-  queueGithubSync(() => syncFileToGithub(localPath, repoPath, message));
+function queueGithubFileSync(localPath, repoPath, message, waitForGithub = false) {
+  return queueGithubSync(() => syncFileToGithub(localPath, repoPath, message), waitForGithub);
 }
 
-function queueGithubFileDelete(repoPath, message) {
-  queueGithubSync(() => deleteFileFromGithub(repoPath, message));
+function queueGithubFileDelete(repoPath, message, waitForGithub = false) {
+  return queueGithubSync(() => deleteFileFromGithub(repoPath, message), waitForGithub);
 }
 
 function readJsonFile(filePath, fallback) {
@@ -461,6 +465,11 @@ function readSchedules() {
 function saveSchedules(schedules) {
   fs.writeFileSync(schedulesFile, JSON.stringify(schedules, null, 2));
   queueGithubFileSync(schedulesFile, "data/schedules.json", "Update schedules");
+}
+
+async function saveSchedulesAndSync(schedules) {
+  fs.writeFileSync(schedulesFile, JSON.stringify(schedules, null, 2));
+  await queueGithubFileSync(schedulesFile, "data/schedules.json", "Update schedules", true);
 }
 
 function readBody(request) {
@@ -760,14 +769,14 @@ async function handleCreateScheduleEvent(request, response) {
 
   schedules.events.push(savedEvent);
   schedules.events.sort((a, b) => a.day.localeCompare(b.day) || a.startTime.localeCompare(b.startTime));
-  saveSchedules(schedules);
+  await saveSchedulesAndSync(schedules);
   sendJson(response, 201, savedEvent);
 }
 
-function handleDeleteScheduleEvent(response, id) {
+async function handleDeleteScheduleEvent(response, id) {
   const schedules = readSchedules();
   schedules.events = schedules.events.filter((event) => event.id !== id);
-  saveSchedules(schedules);
+  await saveSchedulesAndSync(schedules);
   sendJson(response, 200, { ok: true });
 }
 
@@ -799,6 +808,7 @@ async function handleUploadScheduleImage(request, response) {
   const uploadName = crypto.randomUUID() + extension;
   const uploadPath = path.join(uploadsDir, uploadName);
   fs.writeFileSync(uploadPath, image.data);
+  await queueGithubFileSync(uploadPath, "uploads/" + uploadName, "Add uploaded schedule image", true);
 
   const schedules = readSchedules();
   const savedImage = {
@@ -809,11 +819,11 @@ async function handleUploadScheduleImage(request, response) {
   };
 
   schedules.images.push(savedImage);
-  saveSchedules(schedules);
+  await saveSchedulesAndSync(schedules);
   sendJson(response, 201, savedImage);
 }
 
-function handleDeleteScheduleImage(response, id) {
+async function handleDeleteScheduleImage(response, id) {
   const schedules = readSchedules();
   const image = schedules.images.find((item) => item.id === id);
 
@@ -823,13 +833,14 @@ function handleDeleteScheduleImage(response, id) {
   }
 
   schedules.images = schedules.images.filter((item) => item.id !== id);
-  saveSchedules(schedules);
+  await saveSchedulesAndSync(schedules);
 
   if (image.image && image.image.startsWith("/uploads/")) {
     const uploadPath = path.join(storageDir, image.image);
 
     if (uploadPath.startsWith(uploadsDir) && fs.existsSync(uploadPath)) {
       fs.unlinkSync(uploadPath);
+      await queueGithubFileDelete("uploads/" + path.basename(image.image), "Delete uploaded schedule image", true);
     }
   }
 
@@ -912,7 +923,7 @@ const server = http.createServer(async (request, response) => {
     }
 
     if (request.method === "DELETE" && url.pathname.startsWith("/api/schedules/events/")) {
-      handleDeleteScheduleEvent(response, url.pathname.split("/").pop());
+      await handleDeleteScheduleEvent(response, url.pathname.split("/").pop());
       return;
     }
 
@@ -922,7 +933,7 @@ const server = http.createServer(async (request, response) => {
     }
 
     if (request.method === "DELETE" && url.pathname.startsWith("/api/schedules/images/")) {
-      handleDeleteScheduleImage(response, url.pathname.split("/").pop());
+      await handleDeleteScheduleImage(response, url.pathname.split("/").pop());
       return;
     }
 
