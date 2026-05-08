@@ -294,6 +294,10 @@ let githubSyncQueue = Promise.resolve();
 
 function queueGithubSync(task, waitForGithub = false) {
   if (!isGithubSyncEnabled()) {
+    if (waitForGithub) {
+      throw new Error("GitHub sync is not configured. Check GITHUB_TOKEN and GITHUB_REPO in Render.");
+    }
+
     return Promise.resolve();
   }
 
@@ -449,6 +453,15 @@ async function importFromGithubAtStartup() {
 function sendJson(response, status, value) {
   response.writeHead(status, { "Content-Type": "application/json; charset=utf-8" });
   response.end(JSON.stringify(value));
+}
+
+function githubSyncStatus() {
+  return {
+    enabled: isGithubSyncEnabled(),
+    repo: githubRepo || "",
+    branch: githubBranch || "",
+    hasToken: Boolean(githubToken)
+  };
 }
 
 function readMemories() {
@@ -888,6 +901,11 @@ const server = http.createServer(async (request, response) => {
 
     if (request.method === "GET" && url.pathname === "/health") {
       sendJson(response, 200, { ok: true });
+      return;
+    }
+
+    if (request.method === "GET" && url.pathname === "/api/github-sync-status") {
+      sendJson(response, 200, githubSyncStatus());
       return;
     }
 
