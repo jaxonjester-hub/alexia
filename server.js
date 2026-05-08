@@ -261,7 +261,8 @@ async function syncFileToGithub(localPath, repoPath, message) {
   const response = await githubRequest("PUT", "/repos/" + githubRepo + "/contents/" + encodedPath, payload);
 
   if (response.statusCode < 200 || response.statusCode >= 300) {
-    throw new Error("GitHub could not save " + repoPath + ".");
+    const details = response.data && response.data.message ? " " + response.data.message : "";
+    throw new Error("GitHub could not save " + repoPath + "." + details);
   }
 }
 
@@ -284,7 +285,8 @@ async function deleteFileFromGithub(repoPath, message) {
   });
 
   if (response.statusCode < 200 || response.statusCode >= 300) {
-    throw new Error("GitHub could not delete " + repoPath + ".");
+    const details = response.data && response.data.message ? " " + response.data.message : "";
+    throw new Error("GitHub could not delete " + repoPath + "." + details);
   }
 }
 
@@ -945,7 +947,7 @@ const server = http.createServer(async (request, response) => {
     sendJson(response, 405, { error: "Method not allowed." });
   } catch (error) {
     console.error(error);
-    sendJson(response, 500, { error: "Server error." });
+    sendJson(response, 500, { error: error.message || "Server error." });
   }
 });
 

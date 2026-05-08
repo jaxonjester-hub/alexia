@@ -475,6 +475,15 @@
       status.textContent = message;
     }
 
+    async function responseError(response, fallback) {
+      try {
+        const details = await response.json();
+        return details.error || fallback;
+      } catch {
+        return fallback;
+      }
+    }
+
     function formatTime(time) {
       const [hour, minute] = time.split(":").map(Number);
       const date = new Date();
@@ -661,7 +670,7 @@
         setStatus("Saved.");
         await renderSchedules();
       } else {
-        setStatus("The schedule item could not be saved.");
+        setStatus(await responseError(response, "The schedule item could not be saved."));
       }
     });
 
@@ -679,7 +688,7 @@
         setStatus("Uploaded.");
         await renderSchedules();
       } else {
-        setStatus("The picture could not be uploaded.");
+        setStatus(await responseError(response, "The picture could not be uploaded."));
       }
     });
 
