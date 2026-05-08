@@ -1,4 +1,5 @@
 const http = require("http");
+const https = require("https");
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
@@ -10,6 +11,13 @@ const dataDir = path.join(storageDir, "data");
 const uploadsDir = path.join(storageDir, "uploads");
 const memoriesFile = path.join(dataDir, "memories.json");
 const schedulesFile = path.join(dataDir, "schedules.json");
+const repoDataDir = path.join(root, "data");
+const repoUploadsDir = path.join(root, "uploads");
+const githubToken = process.env.GITHUB_TOKEN || "";
+const githubRepo = process.env.GITHUB_REPO || "";
+const githubBranch = process.env.GITHUB_BRANCH || "main";
+const githubCommitName = process.env.GITHUB_COMMIT_NAME || "Alexia Timeline";
+const githubCommitEmail = process.env.GITHUB_COMMIT_EMAIL || "timeline@render.com";
 
 const contentTypes = {
   ".html": "text/html; charset=utf-8",
@@ -26,12 +34,183 @@ const contentTypes = {
 fs.mkdirSync(dataDir, { recursive: true });
 fs.mkdirSync(uploadsDir, { recursive: true });
 
+function isEmptyJsonArray(filePath) {
+  if (!fs.existsSync(filePath)) {
+    return true;
+  }
+
+  try {
+    const value = JSON.parse(fs.readFileSync(filePath, "utf8"));
+    return Array.isArray(value) && value.length === 0;
+  } catch {
+    return false;
+  }
+}
+
+function seedFileFromRepo(repoFile, storageFile, shouldReplaceEmptyArray = false) {
+  if (!fs.existsSync(repoFile)) {
+    return;
+  }
+
+  const shouldCopy = !fs.existsSync(storageFile) || (shouldReplaceEmptyArray && isEmptyJsonArray(storageFile));
+
+  if (shouldCopy) {
+    fs.copyFileSync(repoFile, storageFile);
+  }
+}
+
+function seedUploadsFromRepo() {
+  if (path.resolve(repoUploadsDir) === path.resolve(uploadsDir) || !fs.existsSync(repoUploadsDir)) {
+    return;
+  }
+
+  fs.readdirSync(repoUploadsDir, { withFileTypes: true }).forEach((entry) => {
+    if (!entry.isFile()) {
+      return;
+    }
+
+    const sourcePath = path.join(repoUploadsDir, entry.name);
+    const destinationPath = path.join(uploadsDir, entry.name);
+
+    if (!fs.existsSync(destinationPath)) {
+      fs.copyFileSync(sourcePath, destinationPath);
+    }
+  });
+}
+
+if (path.resolve(storageDir) !== path.resolve(root)) {
+  seedFileFromRepo(path.join(repoDataDir, "memories.json"), memoriesFile, true);
+  seedFileFromRepo(path.join(repoDataDir, "schedules.json"), schedulesFile);
+  seedUploadsFromRepo();
+}
+
 if (!fs.existsSync(memoriesFile)) {
   fs.writeFileSync(memoriesFile, "[]");
 }
 
 if (!fs.existsSync(schedulesFile)) {
   fs.writeFileSync(schedulesFile, JSON.stringify({ events: [], images: [] }, null, 2));
+}
+
+function isGithubSyncEnabled() {
+  return Boolean(githubToken && githubRepo);
+}
+
+function encodeGitHubPath(repoPath) {
+  return repoPath.split("/").map(encodeURIComponent).join("/");
+}
+
+function githubRequest(method, apiPath, body) {
+  return new Promise((resolve, reject) => {
+    const payload = body ? JSON.stringify(body) : "";
+    const request = https.request({
+      hostname: "api.github.com",
+      path: apiPath,
+      method,
+      headers: {
+        "Accept": "application/vnd.github+json",
+        "Authorization": "Bearer " + githubToken,
+        "Content-Type": "application/json",
+        "Content-Length": Buffer.byteLength(payload),
+        "User-Agent": "alexia-timeline",
+        "X-GitHub-Api-Version": "2022-11-28"
+      }
+    }, (response) => {
+      const chunks = [];
+
+      response.on("data", (chunk) => chunks.push(chunk));
+      response.on("end", () => {
+        const text = Buffer.concat(chunks).toString("utf8");
+        const data = text ? JSON.parse(text) : {};
+        resolve({ statusCode: response.statusCode, data });
+      });
+    });
+
+    request.on("error", reject);
+    request.end(payload);
+  });
+}
+
+async function getGithubFileSha(repoPath) {
+  const encodedPath = encodeGitHubPath(repoPath);
+  const response = await githubRequest("GET", "/repos/" + githubRepo + "/contents/" + encodedPath + "?ref=" + encodeURIComponent(githubBranch));
+
+  if (response.statusCode === 404) {
+    return "";
+  }
+
+  if (response.statusCode < 200 || response.statusCode >= 300) {
+    throw new Error("GitHub could not read " + repoPath + ".");
+  }
+
+  return response.data.sha || "";
+}
+
+async function syncFileToGithub(localPath, repoPath, message) {
+  const sha = await getGithubFileSha(repoPath);
+  const encodedPath = encodeGitHubPath(repoPath);
+  const payload = {
+    message,
+    content: fs.readFileSync(localPath).toString("base64"),
+    branch: githubBranch,
+    committer: {
+      name: githubCommitName,
+      email: githubCommitEmail
+    }
+  };
+
+  if (sha) {
+    payload.sha = sha;
+  }
+
+  const response = await githubRequest("PUT", "/repos/" + githubRepo + "/contents/" + encodedPath, payload);
+
+  if (response.statusCode < 200 || response.statusCode >= 300) {
+    throw new Error("GitHub could not save " + repoPath + ".");
+  }
+}
+
+async function deleteFileFromGithub(repoPath, message) {
+  const sha = await getGithubFileSha(repoPath);
+
+  if (!sha) {
+    return;
+  }
+
+  const encodedPath = encodeGitHubPath(repoPath);
+  const response = await githubRequest("DELETE", "/repos/" + githubRepo + "/contents/" + encodedPath, {
+    message,
+    sha,
+    branch: githubBranch,
+    committer: {
+      name: githubCommitName,
+      email: githubCommitEmail
+    }
+  });
+
+  if (response.statusCode < 200 || response.statusCode >= 300) {
+    throw new Error("GitHub could not delete " + repoPath + ".");
+  }
+}
+
+let githubSyncQueue = Promise.resolve();
+
+function queueGithubSync(task) {
+  if (!isGithubSyncEnabled()) {
+    return;
+  }
+
+  githubSyncQueue = githubSyncQueue.then(task).catch((error) => {
+    console.error("GitHub sync failed:", error.message);
+  });
+}
+
+function queueGithubFileSync(localPath, repoPath, message) {
+  queueGithubSync(() => syncFileToGithub(localPath, repoPath, message));
+}
+
+function queueGithubFileDelete(repoPath, message) {
+  queueGithubSync(() => deleteFileFromGithub(repoPath, message));
 }
 
 function sendJson(response, status, value) {
@@ -45,6 +224,7 @@ function readMemories() {
 
 function saveMemories(memories) {
   fs.writeFileSync(memoriesFile, JSON.stringify(memories, null, 2));
+  queueGithubFileSync(memoriesFile, "data/memories.json", "Update memories");
 }
 
 function readSchedules() {
@@ -53,6 +233,7 @@ function readSchedules() {
 
 function saveSchedules(schedules) {
   fs.writeFileSync(schedulesFile, JSON.stringify(schedules, null, 2));
+  queueGithubFileSync(schedulesFile, "data/schedules.json", "Update schedules");
 }
 
 function readBody(request) {
@@ -140,6 +321,7 @@ function saveUploadedPhotos(photos) {
     const uploadName = crypto.randomUUID() + extension;
     const uploadPath = path.join(uploadsDir, uploadName);
     fs.writeFileSync(uploadPath, photo.data);
+    queueGithubFileSync(uploadPath, "uploads/" + uploadName, "Add uploaded photo");
     return "/uploads/" + uploadName;
   });
 }
@@ -153,6 +335,7 @@ function deleteUploadedFile(filePath) {
 
   if (uploadPath.startsWith(uploadsDir) && fs.existsSync(uploadPath)) {
     fs.unlinkSync(uploadPath);
+    queueGithubFileDelete("uploads/" + path.basename(filePath), "Delete uploaded photo");
   }
 }
 
