@@ -136,6 +136,26 @@
       margin: 0;
     }
 
+    .edit-lock {
+      display: flex;
+      gap: 10px;
+      align-items: end;
+      flex-wrap: wrap;
+      background: #fff8fb;
+      border: 1px solid #f5c7d7;
+      border-radius: 8px;
+      padding: 14px;
+      margin-bottom: 18px;
+    }
+
+    .edit-lock label {
+      flex: 1 1 240px;
+    }
+
+    .locked {
+      display: none !important;
+    }
+
     .timeline {
       display: grid;
       gap: 22px;
@@ -435,7 +455,15 @@
   <main>
     <h1>Our Trip Timeline</h1>
 
-    <form id="tripForm">
+    <section id="editLock" class="edit-lock">
+      <label>
+        Edit password
+        <input id="passwordInput" type="password" autocomplete="current-password" placeholder="Enter password to make changes">
+      </label>
+      <button id="unlockButton" type="button">Unlock edits</button>
+    </section>
+
+    <form id="tripForm" class="locked">
       <div class="form-section">
         <label>
           Trip title
@@ -498,6 +526,9 @@
 
   <script>
     const form = document.getElementById("tripForm");
+    const editLock = document.getElementById("editLock");
+    const passwordInput = document.getElementById("passwordInput");
+    const unlockButton = document.getElementById("unlockButton");
     const timeline = document.getElementById("timeline");
     const status = document.getElementById("status");
     const tripPhotoInput = document.getElementById("tripPhotoInput");
@@ -518,6 +549,36 @@
     let selectingCover = false;
     let deletingPhotos = false;
     let selectedPhotos = new Set();
+
+    function getSitePassword() {
+      return sessionStorage.getItem("sitePassword") || "";
+    }
+
+    function authHeaders(extraHeaders = {}) {
+      const password = getSitePassword();
+      return password ? { ...extraHeaders, "X-Site-Password": password } : extraHeaders;
+    }
+
+    function updateEditLock() {
+      const unlocked = Boolean(getSitePassword());
+      form.classList.toggle("locked", !unlocked);
+      editLock.classList.toggle("locked", unlocked);
+    }
+
+    unlockButton.addEventListener("click", () => {
+      const password = passwordInput.value.trim();
+
+      if (!password) {
+        setStatus("Enter the password first.");
+        return;
+      }
+
+      sessionStorage.setItem("sitePassword", password);
+      passwordInput.value = "";
+      updateEditLock();
+      setStatus("Edits unlocked.");
+      renderTimeline().catch((error) => setStatus(error.message));
+    });
 
     function setStatus(message) {
       status.textContent = message;
@@ -612,7 +673,9 @@
 
         const actions = document.createElement("div");
         actions.className = "trip-actions";
-        actions.append(addPhotoButton, deletePhotosButton, deleteButton);
+        if (getSitePassword()) {
+          actions.append(addPhotoButton, deletePhotosButton, deleteButton);
+        }
 
         body.append(date, title, note, actions);
         article.append(cover, body);
@@ -755,6 +818,7 @@
       try {
         const response = await fetch("/api/memories", {
           method: "POST",
+          headers: authHeaders(),
           body: new FormData(form)
         });
 
@@ -811,7 +875,8 @@
       }
 
       const response = await fetch("/api/memories/" + event.target.dataset.id, {
-        method: "DELETE"
+        method: "DELETE",
+        headers: authHeaders()
       });
 
       if (response.ok) {
@@ -835,6 +900,7 @@
       try {
         const response = await fetch("/api/memories/" + photoUploadTripId + "/photos", {
           method: "POST",
+          headers: authHeaders(),
           body: data
         });
 
@@ -897,14 +963,14 @@
         confirmDeleteButton.disabled = true;
         viewerStatus.textContent = "Deleting photos...";
 
-        const response = await fetch("/api/memories/" + openTrip.id + "/photos", {
-          method: "DELETE",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            photos: Array.from(selectedPhotos)
-          })
+          const response = await fetch("/api/memories/" + openTrip.id + "/photos", {
+            method: "DELETE",
+            headers: authHeaders({
+              "Content-Type": "application/json"
+            }),
+            body: JSON.stringify({
+              photos: Array.from(selectedPhotos)
+            })
         });
 
         if (!response.ok) {
@@ -949,9 +1015,9 @@
 
       const response = await fetch("/api/memories/" + openTrip.id, {
         method: "PATCH",
-        headers: {
+        headers: authHeaders({
           "Content-Type": "application/json"
-        },
+        }),
         body: JSON.stringify({
           coverPhoto: photoButton.dataset.photo
         })
@@ -988,6 +1054,7 @@
       }
     });
 
+    updateEditLock();
     renderTimeline().catch((error) => {
       timeline.innerHTML = '<div class="empty">Start the server to load the shared timeline.</div>';
       setStatus(error.message);

@@ -22,6 +22,7 @@ const databaseUrl = process.env.DATABASE_URL || "";
 const cloudinaryCloudName = process.env.CLOUDINARY_CLOUD_NAME || "";
 const cloudinaryApiKey = process.env.CLOUDINARY_API_KEY || "";
 const cloudinaryApiSecret = process.env.CLOUDINARY_API_SECRET || "";
+const sitePassword = process.env.SITE_PASSWORD || "";
 
 const contentTypes = {
   ".html": "text/html; charset=utf-8",
@@ -453,6 +454,22 @@ async function importFromGithubAtStartup() {
 function sendJson(response, status, value) {
   response.writeHead(status, { "Content-Type": "application/json; charset=utf-8" });
   response.end(JSON.stringify(value));
+}
+
+function isWriteRequest(request, pathname) {
+  if (request.method === "GET") {
+    return false;
+  }
+
+  return pathname.startsWith("/api/");
+}
+
+function isAuthorized(request) {
+  if (!sitePassword) {
+    return true;
+  }
+
+  return request.headers["x-site-password"] === sitePassword;
 }
 
 function githubSyncStatus() {
@@ -1306,6 +1323,11 @@ function serveFile(response, requestedPath) {
 const server = http.createServer(async (request, response) => {
   try {
     const url = new URL(request.url, "http://localhost");
+
+    if (isWriteRequest(request, url.pathname) && !isAuthorized(request)) {
+      sendJson(response, 401, { error: "Enter the site password to make changes." });
+      return;
+    }
 
     if (request.method === "GET" && url.pathname === "/api/memories") {
       if (isDatabaseStorageEnabled()) {

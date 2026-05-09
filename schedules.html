@@ -128,6 +128,26 @@
       margin: 0;
     }
 
+    .edit-lock {
+      display: flex;
+      gap: 10px;
+      align-items: end;
+      flex-wrap: wrap;
+      background: #fff8fb;
+      border: 1px solid #f5c7d7;
+      border-radius: 8px;
+      padding: 14px;
+      margin-bottom: 18px;
+    }
+
+    .edit-lock label {
+      flex: 1 1 240px;
+    }
+
+    .locked {
+      display: none !important;
+    }
+
     .week-shell {
       background: #fff8fb;
       border: 1px solid #f5c7d7;
@@ -367,7 +387,16 @@
   <main>
     <h1>Weekly Schedules</h1>
 
-    <section class="forms">
+    <section id="editLock" class="edit-lock">
+      <label>
+        Edit password
+        <input id="passwordInput" type="password" autocomplete="current-password" placeholder="Enter password to make changes">
+      </label>
+      <button id="unlockButton" type="button">Unlock edits</button>
+      <p id="status" class="status"></p>
+    </section>
+
+    <section id="forms" class="forms locked">
       <form id="eventForm">
         <div class="form-row">
           <label>
@@ -430,7 +459,6 @@
         </label>
 
         <button type="submit">Upload schedule</button>
-        <p id="status" class="status"></p>
       </form>
     </section>
 
@@ -461,6 +489,10 @@
     const firstHour = 7;
     const lastHour = 19;
     const hourHeight = 44;
+    const forms = document.getElementById("forms");
+    const editLock = document.getElementById("editLock");
+    const passwordInput = document.getElementById("passwordInput");
+    const unlockButton = document.getElementById("unlockButton");
     const eventForm = document.getElementById("eventForm");
     const imageForm = document.getElementById("imageForm");
     const board = document.getElementById("board");
@@ -474,6 +506,36 @@
     function setStatus(message) {
       status.textContent = message;
     }
+
+    function getSitePassword() {
+      return sessionStorage.getItem("sitePassword") || "";
+    }
+
+    function authHeaders(extraHeaders = {}) {
+      const password = getSitePassword();
+      return password ? { ...extraHeaders, "X-Site-Password": password } : extraHeaders;
+    }
+
+    function updateEditLock() {
+      const unlocked = Boolean(getSitePassword());
+      forms.classList.toggle("locked", !unlocked);
+      editLock.classList.toggle("locked", unlocked);
+    }
+
+    unlockButton.addEventListener("click", () => {
+      const password = passwordInput.value.trim();
+
+      if (!password) {
+        setStatus("Enter the password first.");
+        return;
+      }
+
+      sessionStorage.setItem("sitePassword", password);
+      passwordInput.value = "";
+      updateEditLock();
+      setStatus("Edits unlocked.");
+      renderSchedules().catch((error) => setStatus(error.message));
+    });
 
     async function responseError(response, fallback) {
       try {
@@ -572,7 +634,12 @@
           button.dataset.id = event.id;
           button.textContent = "Delete";
 
-          item.append(title, time, note, button);
+          item.append(title, time, note);
+
+          if (getSitePassword()) {
+            item.appendChild(button);
+          }
+
           column.appendChild(item);
         });
 
@@ -640,7 +707,12 @@
           button.dataset.id = scheduleImage.id;
           button.textContent = "Delete picture";
 
-          card.append(imageButton, button);
+          card.appendChild(imageButton);
+
+          if (getSitePassword()) {
+            card.appendChild(button);
+          }
+
           group.appendChild(card);
         });
       });
@@ -659,9 +731,9 @@
       const payload = Object.fromEntries(new FormData(eventForm));
       const response = await fetch("/api/schedules/events", {
         method: "POST",
-        headers: {
+        headers: authHeaders({
           "Content-Type": "application/json"
-        },
+        }),
         body: JSON.stringify(payload)
       });
 
@@ -680,6 +752,7 @@
 
       const response = await fetch("/api/schedules/images", {
         method: "POST",
+        headers: authHeaders(),
         body: new FormData(imageForm)
       });
 
@@ -698,7 +771,8 @@
       }
 
       const response = await fetch("/api/schedules/events/" + event.target.dataset.id, {
-        method: "DELETE"
+        method: "DELETE",
+        headers: authHeaders()
       });
 
       if (response.ok) {
@@ -721,7 +795,8 @@
       }
 
       const response = await fetch("/api/schedules/images/" + event.target.dataset.id, {
-        method: "DELETE"
+        method: "DELETE",
+        headers: authHeaders()
       });
 
       if (response.ok) {
@@ -748,6 +823,7 @@
       }
     });
 
+    updateEditLock();
     renderSchedules().catch((error) => {
       board.innerHTML = '<div class="empty">Start the server to load schedules.</div>';
       setStatus(error.message);
