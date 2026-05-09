@@ -563,6 +563,9 @@
       const unlocked = Boolean(getSitePassword());
       form.classList.toggle("locked", !unlocked);
       editLock.classList.toggle("locked", unlocked);
+      coverModeButton.classList.toggle("locked", !unlocked);
+      deleteModeButton.classList.toggle("locked", !unlocked);
+      confirmDeleteButton.classList.toggle("locked", !unlocked);
     }
 
     unlockButton.addEventListener("click", () => {
@@ -694,6 +697,9 @@
       viewer.classList.remove("deleting-photos");
       coverModeButton.classList.remove("active");
       deleteModeButton.classList.remove("active");
+      coverModeButton.classList.toggle("locked", !getSitePassword());
+      deleteModeButton.classList.toggle("locked", !getSitePassword());
+      confirmDeleteButton.classList.toggle("locked", !getSitePassword());
       coverModeButton.textContent = "Make cover";
       deleteModeButton.textContent = "Delete photos";
       confirmDeleteButton.hidden = true;
@@ -932,6 +938,11 @@
     });
 
     coverModeButton.addEventListener("click", () => {
+      if (!getSitePassword()) {
+        setStatus("Enter the password to make changes.");
+        return;
+      }
+
       selectingCover = !selectingCover;
       deletingPhotos = false;
       selectedPhotos = new Set();
@@ -947,6 +958,11 @@
     });
 
     deleteModeButton.addEventListener("click", () => {
+      if (!getSitePassword()) {
+        setStatus("Enter the password to make changes.");
+        return;
+      }
+
       if (deletingPhotos) {
         exitDeleteMode();
       } else {
@@ -1010,6 +1026,11 @@
 
       if (!selectingCover) {
         openLightbox(photoButton.dataset.photo);
+        return;
+      }
+
+      if (!getSitePassword()) {
+        setStatus("Enter the password to make changes.");
         return;
       }
 
