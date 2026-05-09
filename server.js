@@ -603,7 +603,46 @@ function getCloudinary() {
   return cloudinaryClient;
 }
 
-function uploadImageToCloudinary(file, folder) {
+async function prepareImageForCloudinary(file) {
+  const cloudinaryFreeLimit = 10 * 1024 * 1024;
+
+  if (file.data.length < cloudinaryFreeLimit) {
+    return file.data;
+  }
+
+  const sharp = require("sharp");
+  const attempts = [
+    { width: 2200, quality: 82 },
+    { width: 1800, quality: 76 },
+    { width: 1400, quality: 70 }
+  ];
+
+  for (const attempt of attempts) {
+    const resized = await sharp(file.data)
+      .rotate()
+      .resize({
+        width: attempt.width,
+        height: attempt.width,
+        fit: "inside",
+        withoutEnlargement: true
+      })
+      .jpeg({
+        quality: attempt.quality,
+        mozjpeg: true
+      })
+      .toBuffer();
+
+    if (resized.length < cloudinaryFreeLimit) {
+      return resized;
+    }
+  }
+
+  throw new Error("That image is too large to upload. Try a smaller picture.");
+}
+
+async function uploadImageToCloudinary(file, folder) {
+  const imageBuffer = await prepareImageForCloudinary(file);
+
   return new Promise((resolve, reject) => {
     const upload = getCloudinary().uploader.upload_stream({
       folder,
@@ -620,7 +659,7 @@ function uploadImageToCloudinary(file, folder) {
       });
     });
 
-    upload.end(file.data);
+    upload.end(imageBuffer);
   });
 }
 
