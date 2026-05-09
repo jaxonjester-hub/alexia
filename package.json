@@ -1,5 +1,10 @@
 {
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "migrate:database": "node scripts/migrate-to-neon-cloudinary.js"
+  },
+  "dependencies": {
+    "cloudinary": "^2.5.1",
+    "pg": "^8.13.1"
   }
 }

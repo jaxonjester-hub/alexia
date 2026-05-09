@@ -18,6 +18,10 @@ const githubRepo = process.env.GITHUB_REPO || "";
 const githubBranch = process.env.GITHUB_BRANCH || "main";
 const githubCommitName = process.env.GITHUB_COMMIT_NAME || "Alexia Timeline";
 const githubCommitEmail = process.env.GITHUB_COMMIT_EMAIL || "timeline@render.com";
+const databaseUrl = process.env.DATABASE_URL || "";
+const cloudinaryCloudName = process.env.CLOUDINARY_CLOUD_NAME || "";
+const cloudinaryApiKey = process.env.CLOUDINARY_API_KEY || "";
+const cloudinaryApiSecret = process.env.CLOUDINARY_API_SECRET || "";
 
 const contentTypes = {
   ".html": "text/html; charset=utf-8",
@@ -294,10 +298,6 @@ let githubSyncQueue = Promise.resolve();
 
 function queueGithubSync(task, waitForGithub = false) {
   if (!isGithubSyncEnabled()) {
-    if (waitForGithub) {
-      throw new Error("GitHub sync is not configured. Check GITHUB_TOKEN and GITHUB_REPO in Render.");
-    }
-
     return Promise.resolve();
   }
 
@@ -437,7 +437,7 @@ async function importGithubUploads() {
 }
 
 async function importFromGithubAtStartup() {
-  if (!isGithubSyncEnabled()) {
+  if (isDatabaseStorageEnabled() || !isGithubSyncEnabled()) {
     return;
   }
 
@@ -552,6 +552,335 @@ function safeUploadExtension(contentType, filename) {
   return [".jpg", ".jpeg", ".png", ".gif", ".webp"].includes(fromName) ? fromName : ".jpg";
 }
 
+function isDatabaseStorageEnabled() {
+  return Boolean(databaseUrl && cloudinaryCloudName && cloudinaryApiKey && cloudinaryApiSecret);
+}
+
+let dbPool = null;
+let cloudinaryClient = null;
+
+function getDbPool() {
+  if (!dbPool) {
+    const { Pool } = require("pg");
+    dbPool = new Pool({
+      connectionString: databaseUrl,
+      ssl: {
+        rejectUnauthorized: false
+      }
+    });
+  }
+
+  return dbPool;
+}
+
+function getCloudinary() {
+  if (!cloudinaryClient) {
+    cloudinaryClient = require("cloudinary").v2;
+    cloudinaryClient.config({
+      cloud_name: cloudinaryCloudName,
+      api_key: cloudinaryApiKey,
+      api_secret: cloudinaryApiSecret
+    });
+  }
+
+  return cloudinaryClient;
+}
+
+function uploadImageToCloudinary(file, folder) {
+  return new Promise((resolve, reject) => {
+    const upload = getCloudinary().uploader.upload_stream({
+      folder,
+      resource_type: "image"
+    }, (error, result) => {
+      if (error) {
+        reject(error);
+        return;
+      }
+
+      resolve({
+        imageUrl: result.secure_url,
+        publicId: result.public_id
+      });
+    });
+
+    upload.end(file.data);
+  });
+}
+
+async function deleteCloudinaryImage(publicId) {
+  if (!publicId) {
+    return;
+  }
+
+  await getCloudinary().uploader.destroy(publicId, {
+    resource_type: "image"
+  });
+}
+
+function dbTripRowToMemory(trip, photos) {
+  const tripPhotos = photos.filter((photo) => photo.trip_id === trip.id);
+  const photoUrls = tripPhotos.map((photo) => photo.image_url);
+  const coverPhoto = tripPhotos.find((photo) => photo.id === trip.cover_photo_id) || tripPhotos[0];
+
+  return {
+    id: trip.id,
+    date: trip.start_date,
+    startDate: trip.start_date,
+    endDate: trip.end_date || "",
+    title: trip.title,
+    note: trip.note,
+    photos: photoUrls,
+    coverPhoto: coverPhoto ? coverPhoto.image_url : "",
+    createdAt: trip.created_at
+  };
+}
+
+async function getMemoriesFromDatabase() {
+  const pool = getDbPool();
+  const [tripsResult, photosResult] = await Promise.all([
+    pool.query("select id, title, note, start_date::text, end_date::text, cover_photo_id, created_at from trips order by start_date desc"),
+    pool.query("select id, trip_id, image_url, cloudinary_public_id, created_at from trip_photos order by created_at")
+  ]);
+
+  return tripsResult.rows.map((trip) => dbTripRowToMemory(trip, photosResult.rows));
+}
+
+async function createMemoryInDatabase(fields, uploadedPhotos) {
+  const uploads = [];
+  const client = await getDbPool().connect();
+
+  try {
+    for (const photo of uploadedPhotos) {
+      uploads.push(await uploadImageToCloudinary(photo, "alexia/trips"));
+    }
+
+    await client.query("begin");
+    const tripResult = await client.query(
+      "insert into trips (title, note, start_date, end_date) values ($1, $2, $3, $4) returning id, title, note, start_date::text, end_date::text, cover_photo_id, created_at",
+      [fields.title, fields.note, fields.startDate, fields.endDate || null]
+    );
+    const trip = tripResult.rows[0];
+    const photoRows = [];
+
+    for (const upload of uploads) {
+      const photoResult = await client.query(
+        "insert into trip_photos (trip_id, image_url, cloudinary_public_id) values ($1, $2, $3) returning id, trip_id, image_url, cloudinary_public_id, created_at",
+        [trip.id, upload.imageUrl, upload.publicId]
+      );
+      photoRows.push(photoResult.rows[0]);
+    }
+
+    await client.query("update trips set cover_photo_id = $1 where id = $2", [photoRows[0].id, trip.id]);
+    await client.query("commit");
+    trip.cover_photo_id = photoRows[0].id;
+    return dbTripRowToMemory(trip, photoRows);
+  } catch (error) {
+    await client.query("rollback").catch(() => {});
+    await Promise.all(uploads.map((upload) => deleteCloudinaryImage(upload.publicId).catch(() => {})));
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+async function addMemoryPhotosInDatabase(id, photos) {
+  const uploads = [];
+  const client = await getDbPool().connect();
+
+  try {
+    const tripCheck = await client.query("select id, cover_photo_id from trips where id = $1", [id]);
+
+    if (tripCheck.rowCount === 0) {
+      return null;
+    }
+
+    for (const photo of photos) {
+      uploads.push(await uploadImageToCloudinary(photo, "alexia/trips"));
+    }
+
+    await client.query("begin");
+    const newPhotos = [];
+
+    for (const upload of uploads) {
+      const photoResult = await client.query(
+        "insert into trip_photos (trip_id, image_url, cloudinary_public_id) values ($1, $2, $3) returning id",
+        [id, upload.imageUrl, upload.publicId]
+      );
+      newPhotos.push(photoResult.rows[0]);
+    }
+
+    if (!tripCheck.rows[0].cover_photo_id && newPhotos.length > 0) {
+      await client.query("update trips set cover_photo_id = $1 where id = $2", [newPhotos[0].id, id]);
+    }
+
+    await client.query("commit");
+    return (await getMemoriesFromDatabase()).find((trip) => trip.id === id);
+  } catch (error) {
+    await client.query("rollback").catch(() => {});
+    await Promise.all(uploads.map((upload) => deleteCloudinaryImage(upload.publicId).catch(() => {})));
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+async function deleteMemoryFromDatabase(id) {
+  const client = await getDbPool().connect();
+
+  try {
+    const photosResult = await client.query("select cloudinary_public_id from trip_photos where trip_id = $1", [id]);
+    await client.query("update trips set cover_photo_id = null where id = $1", [id]);
+    const tripResult = await client.query("delete from trips where id = $1 returning id", [id]);
+
+    if (tripResult.rowCount === 0) {
+      return false;
+    }
+
+    await Promise.all(photosResult.rows.map((photo) => deleteCloudinaryImage(photo.cloudinary_public_id).catch(() => {})));
+    return true;
+  } finally {
+    client.release();
+  }
+}
+
+async function deleteMemoryPhotosFromDatabase(id, photosToDelete) {
+  const client = await getDbPool().connect();
+
+  try {
+    await client.query("begin");
+    const allPhotos = (await client.query(
+      "select id, image_url, cloudinary_public_id from trip_photos where trip_id = $1 order by created_at",
+      [id]
+    )).rows;
+
+    if (allPhotos.length === 0) {
+      await client.query("rollback");
+      return { status: 404 };
+    }
+
+    const selected = allPhotos.filter((photo) => photosToDelete.includes(photo.image_url));
+
+    if (selected.length !== photosToDelete.length) {
+      await client.query("rollback");
+      return { status: 400, error: "One of those photos does not belong to this trip." };
+    }
+
+    const remaining = allPhotos.filter((photo) => !photosToDelete.includes(photo.image_url));
+
+    if (remaining.length === 0) {
+      await client.query("rollback");
+      return { status: 400, error: "A trip needs at least one picture. Delete the trip instead." };
+    }
+
+    const trip = (await client.query("select cover_photo_id from trips where id = $1", [id])).rows[0];
+
+    if (trip && selected.some((photo) => photo.id === trip.cover_photo_id)) {
+      await client.query("update trips set cover_photo_id = $1 where id = $2", [remaining[0].id, id]);
+    }
+
+    await client.query("delete from trip_photos where trip_id = $1 and image_url = any($2)", [id, photosToDelete]);
+    await client.query("commit");
+    await Promise.all(selected.map((photo) => deleteCloudinaryImage(photo.cloudinary_public_id).catch(() => {})));
+    return { status: 200, memory: (await getMemoriesFromDatabase()).find((trip) => trip.id === id) };
+  } catch (error) {
+    await client.query("rollback").catch(() => {});
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+async function updateCoverPhotoInDatabase(id, coverPhoto) {
+  const photo = await getDbPool().query("select id from trip_photos where trip_id = $1 and image_url = $2", [id, coverPhoto]);
+
+  if (photo.rowCount === 0) {
+    return null;
+  }
+
+  await getDbPool().query("update trips set cover_photo_id = $1 where id = $2", [photo.rows[0].id, id]);
+  return (await getMemoriesFromDatabase()).find((trip) => trip.id === id);
+}
+
+async function getSchedulesFromDatabase() {
+  const pool = getDbPool();
+  const [eventsResult, imagesResult] = await Promise.all([
+    pool.query("select id, person, day, title, start_time::text, end_time::text, note, created_at from schedule_events order by day, start_time"),
+    pool.query("select id, person, image_url, cloudinary_public_id, created_at from schedule_images order by created_at")
+  ]);
+
+  return {
+    events: eventsResult.rows.map((event) => ({
+      id: event.id,
+      person: event.person,
+      day: event.day,
+      title: event.title,
+      startTime: event.start_time.slice(0, 5),
+      endTime: event.end_time.slice(0, 5),
+      note: event.note || "",
+      createdAt: event.created_at
+    })),
+    images: imagesResult.rows.map((image) => ({
+      id: image.id,
+      person: image.person,
+      image: image.image_url,
+      createdAt: image.created_at
+    }))
+  };
+}
+
+async function createScheduleEventInDatabase(event) {
+  const result = await getDbPool().query(
+    "insert into schedule_events (person, day, title, start_time, end_time, note) values ($1, $2, $3, $4, $5, $6) returning id, person, day, title, start_time::text, end_time::text, note, created_at",
+    [event.person, event.day, event.title, event.startTime, event.endTime, event.note || ""]
+  );
+  const savedEvent = result.rows[0];
+
+  return {
+    id: savedEvent.id,
+    person: savedEvent.person,
+    day: savedEvent.day,
+    title: savedEvent.title,
+    startTime: savedEvent.start_time.slice(0, 5),
+    endTime: savedEvent.end_time.slice(0, 5),
+    note: savedEvent.note || "",
+    createdAt: savedEvent.created_at
+  };
+}
+
+async function deleteScheduleEventFromDatabase(id) {
+  await getDbPool().query("delete from schedule_events where id = $1", [id]);
+}
+
+async function uploadScheduleImageToDatabase(person, image) {
+  const upload = await uploadImageToCloudinary(image, "alexia/schedules");
+
+  try {
+    const result = await getDbPool().query(
+      "insert into schedule_images (person, image_url, cloudinary_public_id) values ($1, $2, $3) returning id, person, image_url, created_at",
+      [person, upload.imageUrl, upload.publicId]
+    );
+    const savedImage = result.rows[0];
+
+    return {
+      id: savedImage.id,
+      person: savedImage.person,
+      image: savedImage.image_url,
+      createdAt: savedImage.created_at
+    };
+  } catch (error) {
+    await deleteCloudinaryImage(upload.publicId).catch(() => {});
+    throw error;
+  }
+}
+
+async function deleteScheduleImageFromDatabase(id) {
+  const result = await getDbPool().query("delete from schedule_images where id = $1 returning cloudinary_public_id", [id]);
+
+  if (result.rowCount > 0) {
+    await deleteCloudinaryImage(result.rows[0].cloudinary_public_id).catch(() => {});
+  }
+}
+
 function normalizeMemory(memory) {
   if (memory.photos) {
     return memory;
@@ -616,6 +945,11 @@ async function handleCreateMemory(request, response) {
     return;
   }
 
+  if (isDatabaseStorageEnabled()) {
+    sendJson(response, 201, await createMemoryInDatabase(fields, uploadedPhotos));
+    return;
+  }
+
   const savedPhotos = saveUploadedPhotos(uploadedPhotos);
 
   const memory = {
@@ -649,13 +983,6 @@ async function handleAddMemoryPhotos(request, response, id) {
   const body = await readBody(request);
   const parts = parseMultipart(body, boundary[1]);
   const photos = parts.filter((part) => part.name === "photos" && part.filename && part.data.length > 0);
-  const memories = readMemories().map(normalizeMemory);
-  const memory = memories.find((item) => item.id === id);
-
-  if (!memory) {
-    sendJson(response, 404, { error: "Trip not found." });
-    return;
-  }
 
   if (photos.length === 0) {
     sendJson(response, 400, { error: "Choose at least one picture." });
@@ -667,7 +994,27 @@ async function handleAddMemoryPhotos(request, response, id) {
     return;
   }
 
+  if (isDatabaseStorageEnabled()) {
+    const updatedMemory = await addMemoryPhotosInDatabase(id, photos);
+
+    if (!updatedMemory) {
+      sendJson(response, 404, { error: "Trip not found." });
+      return;
+    }
+
+    sendJson(response, 201, updatedMemory);
+    return;
+  }
+
   const savedPhotos = saveUploadedPhotos(photos);
+  const memories = readMemories().map(normalizeMemory);
+  const memory = memories.find((item) => item.id === id);
+
+  if (!memory) {
+    sendJson(response, 404, { error: "Trip not found." });
+    return;
+  }
+
   memory.photos.push(...savedPhotos);
 
   if (!memory.coverPhoto) {
@@ -678,7 +1025,19 @@ async function handleAddMemoryPhotos(request, response, id) {
   sendJson(response, 201, memory);
 }
 
-function handleDeleteMemory(request, response, id) {
+async function handleDeleteMemory(request, response, id) {
+  if (isDatabaseStorageEnabled()) {
+    const deleted = await deleteMemoryFromDatabase(id);
+
+    if (!deleted) {
+      sendJson(response, 404, { error: "Memory not found." });
+      return;
+    }
+
+    sendJson(response, 200, { ok: true });
+    return;
+  }
+
   const memories = readMemories().map(normalizeMemory);
   const memory = memories.find((item) => item.id === id);
   const remaining = memories.filter((item) => item.id !== id);
@@ -702,6 +1061,29 @@ async function handleDeleteMemoryPhoto(request, response, id) {
   const payload = JSON.parse(body.toString("utf8") || "{}");
   const photosToDelete = Array.isArray(payload.photos) ? payload.photos : payload.photo ? [payload.photo] : [];
   const uniquePhotosToDelete = [...new Set(photosToDelete)];
+
+  if (isDatabaseStorageEnabled()) {
+    if (uniquePhotosToDelete.length === 0) {
+      sendJson(response, 400, { error: "Choose at least one picture to delete." });
+      return;
+    }
+
+    const result = await deleteMemoryPhotosFromDatabase(id, uniquePhotosToDelete);
+
+    if (result.status === 404) {
+      sendJson(response, 404, { error: "Trip not found." });
+      return;
+    }
+
+    if (result.status !== 200) {
+      sendJson(response, result.status, { error: result.error });
+      return;
+    }
+
+    sendJson(response, 200, result.memory);
+    return;
+  }
+
   const memories = readMemories().map(normalizeMemory);
   const memory = memories.find((item) => item.id === id);
 
@@ -741,6 +1123,19 @@ async function handleDeleteMemoryPhoto(request, response, id) {
 async function handleUpdateCoverPhoto(request, response, id) {
   const body = await readBody(request);
   const payload = JSON.parse(body.toString("utf8") || "{}");
+
+  if (isDatabaseStorageEnabled()) {
+    const updatedMemory = await updateCoverPhotoInDatabase(id, payload.coverPhoto);
+
+    if (!updatedMemory) {
+      sendJson(response, 400, { error: "That photo does not belong to this trip." });
+      return;
+    }
+
+    sendJson(response, 200, updatedMemory);
+    return;
+  }
+
   const memories = readMemories().map(normalizeMemory);
   const memory = memories.find((item) => item.id === id);
 
@@ -770,7 +1165,6 @@ async function handleCreateScheduleEvent(request, response) {
     return;
   }
 
-  const schedules = readSchedules();
   const savedEvent = {
     id: crypto.randomUUID(),
     person: event.person,
@@ -782,6 +1176,13 @@ async function handleCreateScheduleEvent(request, response) {
     createdAt: new Date().toISOString()
   };
 
+  if (isDatabaseStorageEnabled()) {
+    sendJson(response, 201, await createScheduleEventInDatabase(event));
+    return;
+  }
+
+  const schedules = readSchedules();
+
   schedules.events.push(savedEvent);
   schedules.events.sort((a, b) => a.day.localeCompare(b.day) || a.startTime.localeCompare(b.startTime));
   await saveSchedulesAndSync(schedules);
@@ -789,6 +1190,12 @@ async function handleCreateScheduleEvent(request, response) {
 }
 
 async function handleDeleteScheduleEvent(response, id) {
+  if (isDatabaseStorageEnabled()) {
+    await deleteScheduleEventFromDatabase(id);
+    sendJson(response, 200, { ok: true });
+    return;
+  }
+
   const schedules = readSchedules();
   schedules.events = schedules.events.filter((event) => event.id !== id);
   await saveSchedulesAndSync(schedules);
@@ -819,6 +1226,11 @@ async function handleUploadScheduleImage(request, response) {
     return;
   }
 
+  if (isDatabaseStorageEnabled()) {
+    sendJson(response, 201, await uploadScheduleImageToDatabase(fields.person, image));
+    return;
+  }
+
   const extension = safeUploadExtension(image.contentType, image.filename);
   const uploadName = crypto.randomUUID() + extension;
   const uploadPath = path.join(uploadsDir, uploadName);
@@ -839,6 +1251,12 @@ async function handleUploadScheduleImage(request, response) {
 }
 
 async function handleDeleteScheduleImage(response, id) {
+  if (isDatabaseStorageEnabled()) {
+    await deleteScheduleImageFromDatabase(id);
+    sendJson(response, 200, { ok: true });
+    return;
+  }
+
   const schedules = readSchedules();
   const image = schedules.images.find((item) => item.id === id);
 
@@ -890,11 +1308,21 @@ const server = http.createServer(async (request, response) => {
     const url = new URL(request.url, "http://localhost");
 
     if (request.method === "GET" && url.pathname === "/api/memories") {
+      if (isDatabaseStorageEnabled()) {
+        sendJson(response, 200, await getMemoriesFromDatabase());
+        return;
+      }
+
       sendJson(response, 200, readMemories().map(normalizeMemory).sort((a, b) => b.startDate.localeCompare(a.startDate)));
       return;
     }
 
     if (request.method === "GET" && url.pathname === "/api/schedules") {
+      if (isDatabaseStorageEnabled()) {
+        sendJson(response, 200, await getSchedulesFromDatabase());
+        return;
+      }
+
       sendJson(response, 200, readSchedules());
       return;
     }
@@ -906,6 +1334,17 @@ const server = http.createServer(async (request, response) => {
 
     if (request.method === "GET" && url.pathname === "/api/github-sync-status") {
       sendJson(response, 200, githubSyncStatus());
+      return;
+    }
+
+    if (request.method === "GET" && url.pathname === "/api/storage-status") {
+      sendJson(response, 200, {
+        mode: isDatabaseStorageEnabled() ? "database" : "local",
+        hasDatabaseUrl: Boolean(databaseUrl),
+        hasCloudinaryCloudName: Boolean(cloudinaryCloudName),
+        hasCloudinaryApiKey: Boolean(cloudinaryApiKey),
+        hasCloudinaryApiSecret: Boolean(cloudinaryApiSecret)
+      });
       return;
     }
 
@@ -927,7 +1366,7 @@ const server = http.createServer(async (request, response) => {
     }
 
     if (request.method === "DELETE" && url.pathname.startsWith("/api/memories/")) {
-      handleDeleteMemory(request, response, url.pathname.split("/").pop());
+      await handleDeleteMemory(request, response, url.pathname.split("/").pop());
       return;
     }
 
