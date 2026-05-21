@@ -230,6 +230,62 @@
       top: -6px;
     }
 
+    .easter-egg {
+      position: fixed;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      background: rgba(255, 238, 244, 0.74);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s ease;
+      z-index: 20;
+    }
+
+    .easter-egg.show {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .easter-egg-note {
+      width: min(420px, 100%);
+      padding: 26px 24px;
+      border: 1px solid #f5c7d7;
+      border-radius: 8px;
+      background: #fff8fb;
+      box-shadow: 0 18px 50px rgba(143, 49, 80, 0.22);
+      color: #8f3150;
+      font-size: 1.25rem;
+      font-weight: bold;
+      line-height: 1.45;
+      transform: translateY(12px) scale(0.96);
+      transition: transform 0.3s ease;
+    }
+
+    .easter-egg.show .easter-egg-note {
+      transform: translateY(0) scale(1);
+    }
+
+    .easter-egg-note small {
+      display: block;
+      margin-top: 12px;
+      color: #333;
+      font-size: 0.9rem;
+      font-weight: normal;
+    }
+
+    .floating-heart {
+      position: fixed;
+      bottom: 18px;
+      left: var(--heart-left);
+      color: #ff2f7d;
+      font-size: var(--heart-size);
+      pointer-events: none;
+      animation: floatHeart 2.6s ease-out forwards;
+      z-index: 21;
+    }
+
     @keyframes pulseDot {
       0%,
       100% {
@@ -238,6 +294,22 @@
 
       50% {
         filter: brightness(1.45);
+      }
+    }
+
+    @keyframes floatHeart {
+      0% {
+        opacity: 0;
+        transform: translateY(0) scale(0.7) rotate(-8deg);
+      }
+
+      15% {
+        opacity: 1;
+      }
+
+      100% {
+        opacity: 0;
+        transform: translateY(-78vh) scale(1.4) rotate(12deg);
       }
     }
   </style>
@@ -274,12 +346,23 @@
     </div>
   </main>
 
+  <div id="easterEgg" class="easter-egg" role="dialog" aria-modal="true" aria-label="Secret message" aria-hidden="true">
+    <div class="easter-egg-note">
+      Secret unlocked: every second is just one second closer to you &hearts;
+      <small>Tap anywhere to hide this.</small>
+    </div>
+  </div>
+
   <script>
     const targetDate = new Date("2026-07-05T12:00:00").getTime();
     const startDate = new Date("2026-05-06T00:00:00").getTime();
     const man = document.getElementById("man");
     const woman = document.getElementById("woman");
     const progressPath = document.getElementById("progressPath");
+    const easterEgg = document.getElementById("easterEgg");
+    const secretWord = "alexia";
+    let secretKeys = "";
+    let alexiaClicks = 0;
     const dots = Array.from({ length: 14 }, () => {
       const dot = document.createElement("span");
       dot.className = "progress-dot";
@@ -354,6 +437,52 @@
       document.getElementById("countdown").innerHTML =
         days + " days, " + hours + " hours, " + minutes + " minutes, " + seconds + " seconds";
     }
+
+    function makeHeart(index) {
+      const heart = document.createElement("span");
+      heart.className = "floating-heart";
+      heart.innerHTML = "&hearts;";
+      heart.style.setProperty("--heart-left", (18 + Math.random() * 64) + "vw");
+      heart.style.setProperty("--heart-size", (20 + Math.random() * 26) + "px");
+      heart.style.animationDelay = (index * 0.08) + "s";
+      document.body.appendChild(heart);
+      heart.addEventListener("animationend", () => heart.remove());
+    }
+
+    function showEasterEgg() {
+      easterEgg.classList.add("show");
+      easterEgg.setAttribute("aria-hidden", "false");
+      Array.from({ length: 18 }, (_, index) => makeHeart(index));
+    }
+
+    function hideEasterEgg() {
+      easterEgg.classList.remove("show");
+      easterEgg.setAttribute("aria-hidden", "true");
+    }
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key.length !== 1) {
+        return;
+      }
+
+      secretKeys = (secretKeys + event.key.toLowerCase()).slice(-secretWord.length);
+
+      if (secretKeys === secretWord) {
+        showEasterEgg();
+        secretKeys = "";
+      }
+    });
+
+    woman.querySelector(".label").addEventListener("click", () => {
+      alexiaClicks += 1;
+
+      if (alexiaClicks >= 5) {
+        showEasterEgg();
+        alexiaClicks = 0;
+      }
+    });
+
+    easterEgg.addEventListener("click", hideEasterEgg);
 
     updateCountdown();
     animateProgressWave();
