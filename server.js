@@ -3,6 +3,7 @@ const https = require("https");
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
+const nodemailer = require("nodemailer");
 
 const port = process.env.PORT || 3000;
 const root = __dirname;
@@ -23,6 +24,9 @@ const cloudinaryCloudName = process.env.CLOUDINARY_CLOUD_NAME || "";
 const cloudinaryApiKey = process.env.CLOUDINARY_API_KEY || "";
 const cloudinaryApiSecret = process.env.CLOUDINARY_API_SECRET || "";
 const sitePassword = process.env.SITE_PASSWORD || "";
+const gmailUser = process.env.GMAIL_USER || "";
+const gmailAppPassword = (process.env.GMAIL_APP_PASSWORD || "").replace(/\s/g, "");
+const flowerRequestEmail = process.env.FLOWER_REQUEST_EMAIL || gmailUser;
 
 const contentTypes = {
   ".html": "text/html; charset=utf-8",
@@ -201,6 +205,28 @@ function githubRequest(method, apiPath, body) {
 
     request.on("error", reject);
     request.end(payload);
+  });
+}
+
+async function sendFlowerRequestEmail() {
+  if (!gmailUser || !gmailAppPassword || !flowerRequestEmail) {
+    throw new Error("Gmail is not configured yet.");
+  }
+
+  const transporter = nodemailer.createTransport({
+    service: "gmail",
+    auth: {
+      user: gmailUser,
+      pass: gmailAppPassword
+    }
+  });
+
+  await transporter.sendMail({
+    from: "Flower Request <" + gmailUser + ">",
+    to: flowerRequestEmail,
+    subject: "She wants flowers 💐",
+    text: "This is your sign: she clicked the flower button and would love some flowers. 💐",
+    html: "<h2>She wants flowers 💐</h2><p>This is your sign: she clicked the flower button and would love some flowers.</p>"
   });
 }
 
@@ -1461,6 +1487,16 @@ const server = http.createServer(async (request, response) => {
         hasCloudinaryApiKey: Boolean(cloudinaryApiKey),
         hasCloudinaryApiSecret: Boolean(cloudinaryApiSecret)
       });
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/api/flower-request") {
+      try {
+        await sendFlowerRequestEmail();
+        sendJson(response, 200, { ok: true });
+      } catch (error) {
+        sendJson(response, 503, { error: error.message });
+      }
       return;
     }
 
