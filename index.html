@@ -3,490 +3,306 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Countdown Until I See You</title>
+  <title>Will You Be With Me?</title>
   <style>
-    * {
-      box-sizing: border-box;
-    }
+    * { box-sizing: border-box; }
 
     body {
-      font-family: Arial, sans-serif;
-      text-align: center;
-      background: #ffeef4;
-      color: #333;
       margin: 0;
       min-height: 100vh;
+      overflow: hidden;
+      font-family: Georgia, "Times New Roman", serif;
+      color: #6f2343;
+      background:
+        radial-gradient(circle at 15% 20%, rgba(255,255,255,.9) 0 3px, transparent 4px),
+        radial-gradient(circle at 85% 28%, rgba(255,255,255,.8) 0 4px, transparent 5px),
+        linear-gradient(145deg, #ffe2ec, #fff5f8 55%, #f9c8da);
     }
 
     nav {
+      position: relative;
+      z-index: 5;
       display: flex;
       justify-content: center;
       gap: 8px;
-      padding: 18px;
-      background: #fff8fb;
-      border-bottom: 1px solid #f5c7d7;
-      position: sticky;
-      top: 0;
-      z-index: 10;
+      padding: 16px;
+      font-family: Arial, sans-serif;
     }
 
     nav a {
-      color: #8f3150;
-      text-decoration: none;
-      font-weight: bold;
-      padding: 10px 18px;
+      padding: 9px 16px;
       border-radius: 999px;
+      color: #8f3150;
+      font-weight: bold;
+      text-decoration: none;
     }
 
-    nav a.active {
-      background: #d94d7b;
-      color: white;
-    }
+    nav a.active { background: #d94d7b; color: white; }
 
     main {
-      padding: 80px 20px;
-      width: min(900px, 100%);
-      margin: 0 auto;
-    }
-
-    h1 {
-      font-size: 2.5rem;
-    }
-
-    #countdown {
-      font-size: 2rem;
-      margin-top: 30px;
-      font-weight: bold;
-    }
-
-    .distance-scene {
-      position: relative;
-      height: 240px;
-      margin: 48px auto 0;
-      max-width: 760px;
-      border-bottom: 3px solid #d94d7b;
-    }
-
-    .person {
-      position: absolute;
-      bottom: 0;
-      width: 92px;
-      height: 170px;
-      transition: left 0.8s ease;
-    }
-
-    .person.man {
-      left: 0;
-    }
-
-    .person.woman {
-      left: calc(100% - 92px);
-    }
-
-    .head {
-      width: 42px;
-      height: 42px;
-      border: 4px solid #333;
-      border-radius: 50%;
-      margin: 0 auto;
-      background: #fff8fb;
-    }
-
-    .body {
-      width: 4px;
-      height: 58px;
-      background: #333;
-      margin: 0 auto;
-    }
-
-    .arms,
-    .legs {
-      position: relative;
-      width: 70px;
-      height: 34px;
-      margin: -46px auto 0;
-    }
-
-    .legs {
-      height: 52px;
-      margin-top: 8px;
-    }
-
-    .arms::before,
-    .arms::after,
-    .legs::before,
-    .legs::after {
-      content: "";
-      position: absolute;
-      left: 33px;
-      top: 0;
-      width: 4px;
-      background: #333;
-      transform-origin: top;
-    }
-
-    .arms::before,
-    .arms::after {
-      height: 42px;
-    }
-
-    .legs::before,
-    .legs::after {
-      height: 58px;
-    }
-
-    .arms::before {
-      transform: rotate(55deg);
-    }
-
-    .arms::after {
-      transform: rotate(-55deg);
-    }
-
-    .legs::before {
-      transform: rotate(24deg);
-    }
-
-    .legs::after {
-      transform: rotate(-24deg);
-    }
-
-    .label {
-      color: #8f3150;
-      font-weight: bold;
-      margin-top: 8px;
-    }
-
-    .progress-path {
-      position: absolute;
-      left: 104px;
-      width: calc(100% - 208px);
-      bottom: 82px;
+      min-height: calc(100vh - 70px);
       display: grid;
-      grid-template-columns: repeat(14, 1fr);
-      gap: 10px;
+      place-items: center;
+      padding: 20px;
+    }
+
+    .card {
+      position: relative;
+      width: min(620px, 94vw);
+      min-height: 390px;
+      display: flex;
+      flex-direction: column;
       align-items: center;
-      pointer-events: none;
+      justify-content: center;
+      padding: 48px 28px;
+      border: 1px solid rgba(217, 77, 123, .25);
+      border-radius: 30px;
+      background: rgba(255, 255, 255, .74);
+      box-shadow: 0 24px 70px rgba(143, 49, 80, .2);
+      backdrop-filter: blur(10px);
+      text-align: center;
     }
 
-    .progress-dot {
-      width: 15px;
-      height: 15px;
-      justify-self: center;
-      border-radius: 50%;
-      background: #f3bfd0;
-      border: 2px solid #e39bb6;
-      opacity: 0.35;
-      transform: scale(0.68);
-      transition: opacity 0.4s ease, transform 0.4s ease, background 0.4s ease, box-shadow 0.4s ease;
+    .heart { font-size: 4rem; animation: beat 1.3s infinite; }
+    h1 { margin: 14px 0 10px; font-size: clamp(2.2rem, 7vw, 4rem); }
+    .subtitle { margin: 0 0 35px; color: #9e5772; font: 1.1rem Arial, sans-serif; }
+
+    .buttons { display: flex; align-items: center; justify-content: center; gap: 18px; min-height: 58px; }
+
+    button {
+      min-width: 120px;
+      padding: 15px 28px;
+      border: 0;
+      border-radius: 999px;
+      font: bold 1.1rem Arial, sans-serif;
+      cursor: pointer;
+      box-shadow: 0 8px 20px rgba(143, 49, 80, .2);
+      transition: transform .15s, box-shadow .15s;
     }
 
-    .progress-dot.active {
-      opacity: 1;
-      transform: scale(1.42);
-      background: #ff2f7d;
-      border-color: #8f3150;
-      box-shadow: 0 0 0 5px rgba(255, 47, 125, 0.18), 0 0 18px rgba(217, 77, 123, 0.9);
-      animation: pulseDot 1.2s ease-in-out infinite;
+    #yesButton { background: #d94d7b; color: white; }
+    #yesButton:hover { transform: scale(1.08); box-shadow: 0 12px 28px rgba(143,49,80,.32); }
+    #noButton {
+      background: white;
+      color: #8f3150;
+      border: 2px solid #edafc3;
+      z-index: 10;
+      transition: left .42s cubic-bezier(.22, .8, .32, 1),
+                  top .42s cubic-bezier(.22, .8, .32, 1),
+                  transform .18s ease;
+      will-change: left, top;
     }
 
-    .progress-dot.wave {
-      opacity: 1;
-      transform: scale(1.42);
-      background: #ff2f7d;
-      border-color: #8f3150;
-      box-shadow: 0 0 0 5px rgba(255, 47, 125, 0.18), 0 0 18px rgba(217, 77, 123, 0.9);
-      animation: pulseDot 0.8s ease-in-out infinite;
-    }
-
-    .progress-dot.hidden {
-      visibility: hidden;
-      opacity: 0;
-      animation: none;
-    }
-
-    .progress-dot.met {
-      border-radius: 2px;
-      transform: rotate(45deg) scale(1.1);
-    }
-
-    .progress-dot.met::before,
-    .progress-dot.met::after {
-      content: "";
-      position: absolute;
-      width: 13px;
-      height: 13px;
-      border-radius: 50%;
-      background: inherit;
-    }
-
-    .progress-dot.met::before {
-      left: -6px;
-      top: 0;
-    }
-
-    .progress-dot.met::after {
-      left: 0;
-      top: -6px;
-    }
-
-    .easter-egg {
+    #celebration {
       position: fixed;
       inset: 0;
+      z-index: 20;
       display: grid;
       place-items: center;
       padding: 24px;
-      background: rgba(255, 238, 244, 0.74);
+      background: radial-gradient(circle, rgba(92, 18, 57, .55), rgba(22, 5, 28, .94));
       opacity: 0;
-      pointer-events: none;
-      transition: opacity 0.3s ease;
-      z-index: 20;
+      visibility: hidden;
+      transition: opacity .5s;
     }
 
-    .easter-egg.show {
-      opacity: 1;
-      pointer-events: auto;
+    #celebration.show { opacity: 1; visibility: visible; }
+    canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+
+    .message {
+      position: relative;
+      z-index: 2;
+      max-width: 650px;
+      padding: 38px;
+      color: white;
+      text-align: center;
+      text-shadow: 0 3px 18px #3c0922;
+      animation: rise .8s ease both;
     }
 
-    .easter-egg-note {
-      width: min(420px, 100%);
-      padding: 26px 24px;
-      border: 1px solid #f5c7d7;
-      border-radius: 8px;
-      background: #fff8fb;
-      box-shadow: 0 18px 50px rgba(143, 49, 80, 0.22);
-      color: #8f3150;
-      font-size: 1.25rem;
-      font-weight: bold;
-      line-height: 1.45;
-      transform: translateY(12px) scale(0.96);
-      transition: transform 0.3s ease;
+    .message h2 { margin: 0 0 16px; font-size: clamp(2.7rem, 9vw, 5.5rem); }
+    .message p { margin: 0; font-size: clamp(1.15rem, 3vw, 1.55rem); line-height: 1.6; }
+
+    #backButton {
+      margin-top: 28px;
+      color: #7b2448;
+      background: white;
+      border: 2px solid rgba(255, 255, 255, .7);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, .28);
     }
 
-    .easter-egg.show .easter-egg-note {
-      transform: translateY(0) scale(1);
-    }
+    #backButton:hover { transform: scale(1.06); }
 
-    .easter-egg-note small {
-      display: block;
-      margin-top: 12px;
-      color: #333;
-      font-size: 0.9rem;
-      font-weight: normal;
-    }
+    @keyframes beat { 50% { transform: scale(1.15); } }
+    @keyframes rise { from { opacity: 0; transform: translateY(25px) scale(.95); } }
 
-    .floating-heart {
-      position: fixed;
-      bottom: 18px;
-      left: var(--heart-left);
-      color: #ff2f7d;
-      font-size: var(--heart-size);
-      pointer-events: none;
-      animation: floatHeart 2.6s ease-out forwards;
-      z-index: 21;
-    }
-
-    @keyframes pulseDot {
-      0%,
-      100% {
-        filter: brightness(1);
-      }
-
-      50% {
-        filter: brightness(1.45);
-      }
-    }
-
-    @keyframes floatHeart {
-      0% {
-        opacity: 0;
-        transform: translateY(0) scale(0.7) rotate(-8deg);
-      }
-
-      15% {
-        opacity: 1;
-      }
-
-      100% {
-        opacity: 0;
-        transform: translateY(-78vh) scale(1.4) rotate(12deg);
-      }
+    @media (max-width: 520px) {
+      nav { font-size: .85rem; padding: 10px 4px; }
+      nav a { padding: 8px 10px; }
+      .card { min-height: 420px; }
+      .buttons { gap: 12px; }
+      button { min-width: 105px; padding: 14px 22px; }
     }
   </style>
 </head>
 <body>
   <nav aria-label="Main pages">
-    <a class="active" href="index.html">Countdown</a>
+    <a class="active" href="index.html">For You</a>
     <a href="timeline.html">Timeline</a>
     <a href="schedules.html">Schedules</a>
   </nav>
 
   <main>
-    <h1>Countdown Until We See Each Other &hearts;</h1>
-    <div id="countdown"></div>
-
-    <div class="distance-scene" aria-label="Two people get closer as the countdown gets closer to zero.">
-      <div id="progressPath" class="progress-path" aria-hidden="true"></div>
-
-      <div id="man" class="person man">
-        <div class="head"></div>
-        <div class="body"></div>
-        <div class="arms"></div>
-        <div class="legs"></div>
-        <div class="label">Jaxon</div>
+    <section class="card">
+      <div class="heart" aria-hidden="true">💗</div>
+      <h1>Will you be with me?</h1>
+      <p class="subtitle">There is only one right answer...</p>
+      <div class="buttons">
+        <button id="yesButton" type="button">Yes! 💕</button>
+        <button id="noButton" type="button">No</button>
       </div>
-
-      <div id="woman" class="person woman">
-        <div class="head"></div>
-        <div class="body"></div>
-        <div class="arms"></div>
-        <div class="legs"></div>
-        <div class="label">Alexia</div>
-      </div>
-    </div>
+    </section>
   </main>
 
-  <div id="easterEgg" class="easter-egg" role="dialog" aria-modal="true" aria-label="Secret message" aria-hidden="true">
-    <div class="easter-egg-note">
-      Secret unlocked: every second is just one second closer to you &hearts;
-      <small>Tap anywhere to hide this.</small>
+  <section id="celebration" aria-hidden="true">
+    <canvas id="fireworks"></canvas>
+    <div class="message">
+      <h2>I knew it! 💖</h2>
+      <p>I could never love you more. I wish I just loved you better. I will work at this every day.</p>
+      <button id="backButton" type="button">Go Back</button>
     </div>
-  </div>
+  </section>
 
   <script>
-    const targetDate = new Date("2026-07-05T12:00:00").getTime();
-    const startDate = new Date("2026-05-06T00:00:00").getTime();
-    const man = document.getElementById("man");
-    const woman = document.getElementById("woman");
-    const progressPath = document.getElementById("progressPath");
-    const easterEgg = document.getElementById("easterEgg");
-    const secretWord = "alexia";
-    let secretKeys = "";
-    let alexiaClicks = 0;
-    const dots = Array.from({ length: 14 }, () => {
-      const dot = document.createElement("span");
-      dot.className = "progress-dot";
-      progressPath.appendChild(dot);
-      return dot;
-    });
+    const noButton = document.getElementById("noButton");
+    const yesButton = document.getElementById("yesButton");
+    const backButton = document.getElementById("backButton");
+    const celebration = document.getElementById("celebration");
+    const canvas = document.getElementById("fireworks");
+    const ctx = canvas.getContext("2d");
+    let particles = [];
+    let celebrating = false;
+    let fireworksTimer;
 
-    function updateProgressDots(progress) {
-      const hiddenPerSide = Math.min(dots.length / 2, Math.floor(progress * (dots.length / 2)));
+    let noButtonIsFixed = false;
+    let lastMove = 0;
 
-      dots.forEach((dot, index) => {
-        const hiddenFromLeft = index < hiddenPerSide;
-        const hiddenFromRight = index >= dots.length - hiddenPerSide;
-        dot.classList.toggle("hidden", hiddenFromLeft || hiddenFromRight);
-        dot.classList.toggle("active", progress >= 1);
-        dot.classList.toggle("met", progress >= 1);
-      });
-    }
-
-    function updateProgressPath(progress) {
-      progressPath.style.opacity = progress >= 1 ? "0" : "1";
-    }
-
-    function animateProgressWave() {
+    function moveNoButton() {
       const now = Date.now();
-      const visibleDots = dots.filter((dot) => !dot.classList.contains("hidden"));
-      const half = Math.max(1, Math.ceil(visibleDots.length / 2));
-      const waveStep = Math.floor((now / 180) % half);
+      if (now - lastMove < 180) return;
+      lastMove = now;
 
-      dots.forEach((dot, index) => {
-        dot.classList.remove("wave");
-      });
+      const padding = 18;
+      const viewportWidth = window.visualViewport?.width || window.innerWidth;
+      const viewportHeight = window.visualViewport?.height || window.innerHeight;
+      const width = noButton.offsetWidth;
+      const height = noButton.offsetHeight;
+      const maxX = Math.max(padding, viewportWidth - width - padding);
+      const maxY = Math.max(padding, viewportHeight - height - padding);
+      const newX = padding + Math.random() * Math.max(0, maxX - padding);
+      const newY = padding + Math.random() * Math.max(0, maxY - padding);
 
-      visibleDots.forEach((dot, index) => {
-        const leftIndex = waveStep;
-        const rightIndex = visibleDots.length - 1 - waveStep;
-        const nearLeft = index === leftIndex || index === leftIndex - 1;
-        const nearRight = index === rightIndex || index === rightIndex + 1;
+      if (!noButtonIsFixed) {
+        const rect = noButton.getBoundingClientRect();
+        document.body.appendChild(noButton);
+        noButton.style.position = "fixed";
+        noButton.style.left = rect.left + "px";
+        noButton.style.top = rect.top + "px";
+        noButton.style.margin = "0";
+        noButtonIsFixed = true;
 
-        dot.classList.toggle("wave", nearLeft || nearRight);
-      });
-
-      requestAnimationFrame(animateProgressWave);
-    }
-
-    function updateCountdown() {
-      const now = new Date().getTime();
-      const distance = targetDate - now;
-      const totalDistance = targetDate - startDate;
-      const progress = Math.min(1, Math.max(0, (now - startDate) / totalDistance));
-      const maxTravel = 42;
-
-      man.style.left = (progress * maxTravel) + "%";
-      woman.style.left = "calc(" + (100 - progress * maxTravel) + "% - 92px)";
-      updateProgressDots(progress);
-      updateProgressPath(progress);
-
-      if (distance <= 0) {
-        document.getElementById("countdown").innerHTML = "I get to see you today &hearts;";
-        man.style.left = "42%";
-        woman.style.left = "calc(58% - 92px)";
-        updateProgressDots(1);
-        updateProgressPath(1);
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+          noButton.style.left = newX + "px";
+          noButton.style.top = newY + "px";
+        }));
         return;
       }
 
-      const days = Math.floor(distance / (1000 * 60 * 60 * 24));
-      const hours = Math.floor((distance / (1000 * 60 * 60)) % 24);
-      const minutes = Math.floor((distance / (1000 * 60)) % 60);
-      const seconds = Math.floor((distance / 1000) % 60);
-
-      document.getElementById("countdown").innerHTML =
-        days + " days, " + hours + " hours, " + minutes + " minutes, " + seconds + " seconds";
+      noButton.style.left = newX + "px";
+      noButton.style.top = newY + "px";
     }
 
-    function makeHeart(index) {
-      const heart = document.createElement("span");
-      heart.className = "floating-heart";
-      heart.innerHTML = "&hearts;";
-      heart.style.setProperty("--heart-left", (18 + Math.random() * 64) + "vw");
-      heart.style.setProperty("--heart-size", (20 + Math.random() * 26) + "px");
-      heart.style.animationDelay = (index * 0.08) + "s";
-      document.body.appendChild(heart);
-      heart.addEventListener("animationend", () => heart.remove());
-    }
+    noButton.addEventListener("pointerenter", moveNoButton);
+    noButton.addEventListener("pointerdown", event => {
+      event.preventDefault();
+      moveNoButton();
+    });
+    noButton.addEventListener("focus", moveNoButton);
 
-    function showEasterEgg() {
-      easterEgg.classList.add("show");
-      easterEgg.setAttribute("aria-hidden", "false");
-      Array.from({ length: 18 }, (_, index) => makeHeart(index));
-    }
+    document.addEventListener("pointermove", event => {
+      const rect = noButton.getBoundingClientRect();
+      const closestX = Math.max(rect.left, Math.min(event.clientX, rect.right));
+      const closestY = Math.max(rect.top, Math.min(event.clientY, rect.bottom));
+      const distance = Math.hypot(event.clientX - closestX, event.clientY - closestY);
 
-    function hideEasterEgg() {
-      easterEgg.classList.remove("show");
-      easterEgg.setAttribute("aria-hidden", "true");
-    }
-
-    document.addEventListener("keydown", (event) => {
-      if (event.key.length !== 1) {
-        return;
-      }
-
-      secretKeys = (secretKeys + event.key.toLowerCase()).slice(-secretWord.length);
-
-      if (secretKeys === secretWord) {
-        showEasterEgg();
-        secretKeys = "";
-      }
+      if (distance < 75) moveNoButton();
     });
 
-    woman.querySelector(".label").addEventListener("click", () => {
-      alexiaClicks += 1;
-
-      if (alexiaClicks >= 5) {
-        showEasterEgg();
-        alexiaClicks = 0;
-      }
+    window.addEventListener("resize", () => {
+      if (!noButtonIsFixed) return;
+      const padding = 18;
+      const viewportWidth = window.visualViewport?.width || window.innerWidth;
+      const viewportHeight = window.visualViewport?.height || window.innerHeight;
+      const left = Math.min(parseFloat(noButton.style.left), viewportWidth - noButton.offsetWidth - padding);
+      const top = Math.min(parseFloat(noButton.style.top), viewportHeight - noButton.offsetHeight - padding);
+      noButton.style.left = Math.max(padding, left) + "px";
+      noButton.style.top = Math.max(padding, top) + "px";
     });
 
-    easterEgg.addEventListener("click", hideEasterEgg);
+    function resizeCanvas() {
+      canvas.width = window.innerWidth * devicePixelRatio;
+      canvas.height = window.innerHeight * devicePixelRatio;
+      ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+    }
 
-    updateCountdown();
-    animateProgressWave();
-    setInterval(updateCountdown, 1000);
+    function burst(x, y) {
+      const colors = ["#ff4f91", "#ffd166", "#82eefd", "#ffffff", "#c77dff"];
+      for (let i = 0; i < 75; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const speed = 2 + Math.random() * 6;
+        particles.push({ x, y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
+          life: 1, color: colors[Math.floor(Math.random() * colors.length)] });
+      }
+    }
+
+    function animate() {
+      if (!celebrating) return;
+      ctx.fillStyle = "rgba(20, 4, 25, .18)";
+      ctx.fillRect(0, 0, window.innerWidth, window.innerHeight);
+      particles.forEach(p => {
+        p.x += p.vx; p.y += p.vy; p.vy += .045; p.vx *= .99; p.life -= .012;
+        ctx.globalAlpha = Math.max(0, p.life);
+        ctx.fillStyle = p.color;
+        ctx.beginPath(); ctx.arc(p.x, p.y, 2.4, 0, Math.PI * 2); ctx.fill();
+      });
+      ctx.globalAlpha = 1;
+      particles = particles.filter(p => p.life > 0);
+      requestAnimationFrame(animate);
+    }
+
+    yesButton.addEventListener("click", () => {
+      if (celebrating) return;
+      celebration.classList.add("show");
+      celebration.setAttribute("aria-hidden", "false");
+      celebrating = true;
+      resizeCanvas();
+      animate();
+      burst(innerWidth * .25, innerHeight * .3);
+      burst(innerWidth * .75, innerHeight * .25);
+      burst(innerWidth * .5, innerHeight * .7);
+      fireworksTimer = setInterval(() => burst(Math.random() * innerWidth, 80 + Math.random() * innerHeight * .55), 700);
+    });
+
+    backButton.addEventListener("click", () => {
+      celebration.classList.remove("show");
+      celebration.setAttribute("aria-hidden", "true");
+      celebrating = false;
+      clearInterval(fireworksTimer);
+      particles = [];
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    });
+
+    window.addEventListener("resize", resizeCanvas);
   </script>
 </body>
 </html>
