@@ -214,7 +214,13 @@ async function sendFlowerRequestEmail() {
   }
 
   const transporter = nodemailer.createTransport({
-    service: "gmail",
+    host: "smtp.gmail.com",
+    port: 587,
+    secure: false,
+    requireTLS: true,
+    connectionTimeout: 15000,
+    greetingTimeout: 15000,
+    socketTimeout: 20000,
     auth: {
       user: gmailUser,
       pass: gmailAppPassword
@@ -1495,7 +1501,13 @@ const server = http.createServer(async (request, response) => {
         await sendFlowerRequestEmail();
         sendJson(response, 200, { ok: true });
       } catch (error) {
-        sendJson(response, 503, { error: error.message });
+        console.error("Flower request email failed:", error.code || error.message);
+        const timedOut = error.code === "ETIMEDOUT" || /timeout/i.test(error.message || "");
+        sendJson(response, 503, {
+          error: timedOut
+            ? "Gmail could not be reached. Your network may be blocking outgoing email connections."
+            : error.message
+        });
       }
       return;
     }
