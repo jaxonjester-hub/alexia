@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Welcome</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      min-height: 100vh;
+      margin: 0;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      color: #702544;
+      font-family: Arial, sans-serif;
+      background: linear-gradient(145deg, #ffe2ec, #fff7fa 55%, #f9c8da);
+    }
+    .login-card {
+      width: min(430px, 100%);
+      padding: 42px 34px;
+      border: 1px solid #f2bbce;
+      border-radius: 28px;
+      background: rgba(255, 255, 255, .82);
+      box-shadow: 0 24px 70px rgba(143, 49, 80, .2);
+      text-align: center;
+    }
+    .heart { margin-bottom: 10px; font-size: 3.5rem; }
+    h1 { margin: 0 0 10px; font-family: Georgia, serif; font-size: 2.4rem; }
+    p { margin: 0 0 26px; color: #9e5772; line-height: 1.5; }
+    label { display: block; margin-bottom: 8px; text-align: left; font-weight: bold; }
+    input {
+      width: 100%;
+      padding: 14px 16px;
+      border: 2px solid #edafc3;
+      border-radius: 12px;
+      outline: none;
+      font-size: 1rem;
+    }
+    input:focus { border-color: #d94d7b; box-shadow: 0 0 0 4px rgba(217,77,123,.13); }
+    button {
+      width: 100%;
+      margin-top: 16px;
+      padding: 14px 22px;
+      border: 0;
+      border-radius: 999px;
+      color: white;
+      background: #d94d7b;
+      font-size: 1.05rem;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    button:disabled { opacity: .65; cursor: wait; }
+    #status { min-height: 22px; margin: 14px 0 0; color: #b42355; font-size: .92rem; }
+  </style>
+</head>
+<body>
+  <main class="login-card">
+    <div class="heart" aria-hidden="true">💗</div>
+    <h1>Just for us</h1>
+    <p>Enter the password to open the site.</p>
+    <form id="loginForm">
+      <label for="password">Password</label>
+      <input id="password" type="password" autocomplete="current-password" required autofocus>
+      <button id="loginButton" type="submit">Enter Site</button>
+      <p id="status" role="alert" aria-live="polite"></p>
+    </form>
+  </main>
+
+  <script>
+    const form = document.getElementById("loginForm");
+    const passwordInput = document.getElementById("password");
+    const loginButton = document.getElementById("loginButton");
+    const status = document.getElementById("status");
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const password = passwordInput.value;
+      status.textContent = "";
+      loginButton.disabled = true;
+
+      try {
+        const response = await fetch("/api/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ password })
+        });
+        const result = await response.json();
+
+        if (!response.ok) throw new Error(result.error || "Unable to sign in.");
+
+        sessionStorage.setItem("sitePassword", password);
+        const requestedPage = new URLSearchParams(location.search).get("next");
+        location.replace(requestedPage && requestedPage.startsWith("/") && !requestedPage.startsWith("//") ? requestedPage : "/");
+      } catch (error) {
+        status.textContent = error.message;
+        passwordInput.select();
+        loginButton.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

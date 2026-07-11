@@ -464,12 +464,33 @@ function isWriteRequest(request, pathname) {
   return pathname.startsWith("/api/");
 }
 
+function passwordMatches(candidate) {
+  if (!sitePassword || typeof candidate !== "string") {
+    return !sitePassword;
+  }
+
+  const candidateHash = crypto.createHash("sha256").update(candidate).digest();
+  const passwordHash = crypto.createHash("sha256").update(sitePassword).digest();
+  return crypto.timingSafeEqual(candidateHash, passwordHash);
+}
+
+function getCookie(request, name) {
+  const cookies = String(request.headers.cookie || "").split(";");
+  const prefix = name + "=";
+  const cookie = cookies.map((value) => value.trim()).find((value) => value.startsWith(prefix));
+  return cookie ? decodeURIComponent(cookie.slice(prefix.length)) : "";
+}
+
+function getAuthToken() {
+  return crypto.createHash("sha256").update("alexia-site:" + sitePassword).digest("hex");
+}
+
 function isAuthorized(request) {
   if (!sitePassword) {
     return true;
   }
 
-  return request.headers["x-site-password"] === sitePassword;
+  return passwordMatches(request.headers["x-site-password"]) || getCookie(request, "site_auth") === getAuthToken();
 }
 
 function githubSyncStatus() {
@@ -1362,6 +1383,40 @@ function serveFile(response, requestedPath) {
 const server = http.createServer(async (request, response) => {
   try {
     const url = new URL(request.url, "http://localhost");
+
+    if (request.method === "POST" && url.pathname === "/api/login") {
+      let credentials = {};
+
+      try {
+        credentials = JSON.parse((await readBody(request)).toString("utf8"));
+      } catch {
+        sendJson(response, 400, { error: "Enter a valid password." });
+        return;
+      }
+
+      if (!passwordMatches(credentials.password)) {
+        sendJson(response, 401, { error: "That password is incorrect." });
+        return;
+      }
+
+      const secure = request.headers["x-forwarded-proto"] === "https" ? "; Secure" : "";
+      response.setHeader("Set-Cookie", "site_auth=" + getAuthToken() + "; Path=/; HttpOnly; SameSite=Lax; Max-Age=86400" + secure);
+      sendJson(response, 200, { ok: true });
+      return;
+    }
+
+    const publicPath = url.pathname === "/login.html" || url.pathname === "/health";
+
+    if (!publicPath && !isAuthorized(request)) {
+      if (request.method === "GET" && !url.pathname.startsWith("/api/")) {
+        response.writeHead(302, { Location: "/login.html?next=" + encodeURIComponent(url.pathname) });
+        response.end();
+        return;
+      }
+
+      sendJson(response, 401, { error: "Enter the site password to continue." });
+      return;
+    }
 
     if (isWriteRequest(request, url.pathname) && !isAuthorized(request)) {
       sendJson(response, 401, { error: "Enter the site password to make changes." });
